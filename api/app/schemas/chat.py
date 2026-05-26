@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -12,6 +13,12 @@ from app.schemas.recognition import DetectedFood
 class ChatTurn(BaseModel):
     role: Literal["user", "assistant"]
     content: str
+
+
+class ChatSummary(BaseModel):
+    id: str
+    title: str
+    created_at: datetime
 
 
 class ChatRequest(BaseModel):

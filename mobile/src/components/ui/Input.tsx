@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, TextInput, type TextInputProps, View } from 'react-native';
+import React, { useState } from 'react';
+import { TextInput, type TextInputProps, View } from 'react-native';
 
 import { useTheme } from '../../theme';
 import { Text } from './Text';
@@ -8,26 +8,37 @@ export interface InputProps extends TextInputProps {
   label?: string;
 }
 
-/** Themed text input with optional label. */
-export function Input({ label, style, ...rest }: InputProps) {
+/** Themed text input — filled surface, rounded, with a focus ring in the brand color. */
+export function Input({ label, style, onFocus, onBlur, ...rest }: InputProps) {
   const theme = useTheme();
+  const [focused, setFocused] = useState(false);
+
   return (
     <View style={{ gap: theme.spacing.xs }}>
       {label ? (
-        <Text variant="caption" tone="muted">
-          {label}
+        <Text variant="overline" tone="muted">
+          {label.toUpperCase()}
         </Text>
       ) : null}
       <TextInput
-        placeholderTextColor={theme.colors.muted}
+        placeholderTextColor={theme.colors.subtle}
+        onFocus={(e) => {
+          setFocused(true);
+          onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          onBlur?.(e);
+        }}
         style={[
-          styles.input,
           {
             color: theme.colors.text,
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.border,
+            backgroundColor: theme.colors.card,
+            borderColor: focused ? theme.colors.primary : theme.colors.border,
+            borderWidth: focused ? 2 : 1,
             borderRadius: theme.radius.md,
-            padding: theme.spacing.md,
+            paddingVertical: 14,
+            paddingHorizontal: theme.spacing.md,
             ...theme.typography.body,
           },
           style,
@@ -37,5 +48,3 @@ export function Input({ label, style, ...rest }: InputProps) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({ input: { borderWidth: 1 } });

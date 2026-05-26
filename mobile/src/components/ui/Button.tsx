@@ -1,75 +1,121 @@
-import React from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useRef } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  type GestureResponderEvent,
   Pressable,
   type PressableProps,
   StyleSheet,
   View,
 } from 'react-native';
 
+import { haptic } from '../../lib/haptics';
 import { useTheme } from '../../theme';
+import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
 
-type Variant = 'primary' | 'secondary' | 'ghost';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Size = 'md' | 'lg';
 
 export interface ButtonProps extends Omit<PressableProps, 'children'> {
   title: string;
   variant?: Variant;
+  size?: Size;
   loading?: boolean;
   fullWidth?: boolean;
+  icon?: IconName;
 }
 
-/** Themed button. Color/spacing/radius all come from the theme tokens. */
+/** Themed button: brand-gradient primary, press-scale, haptic feedback. */
 export function Button({
   title,
   variant = 'primary',
+  size = 'lg',
   loading,
   fullWidth = true,
+  icon,
   disabled,
   style,
+  onPress,
   ...rest
 }: ButtonProps) {
   const theme = useTheme();
+  const scale = useRef(new Animated.Value(1)).current;
+
   const isPrimary = variant === 'primary';
+  const isDanger = variant === 'danger';
   const isGhost = variant === 'ghost';
+  const solid = isPrimary || isDanger;
 
-  const bg = isPrimary ? theme.colors.primary : isGhost ? 'transparent' : theme.colors.surface;
-  const borderColor = isGhost ? 'transparent' : theme.colors.border;
-  const textTone = isPrimary ? 'onPrimary' : 'text';
+  const textTone = solid ? 'onPrimary' : isGhost ? 'primary' : 'text';
+  const padV = size === 'lg' ? 16 : 12;
+  const animate = (to: number) =>
+    Animated.spring(scale, { toValue: to, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
 
-  return (
-    <Pressable
-      disabled={disabled || loading}
-      style={({ pressed }) => [
-        styles.base,
-        {
-          backgroundColor: bg,
-          borderColor,
-          borderWidth: isPrimary ? 0 : StyleSheet.hairlineWidth,
-          borderRadius: theme.radius.md,
-          paddingVertical: theme.spacing.md,
-          paddingHorizontal: theme.spacing.lg,
-          opacity: pressed || disabled ? 0.7 : 1,
-          alignSelf: fullWidth ? 'stretch' : 'flex-start',
-        },
-        style as object,
-      ]}
-      {...rest}
-    >
-      <View style={styles.content}>
-        {loading ? (
-          <ActivityIndicator color={isPrimary ? theme.colors.onPrimary : theme.colors.primary} />
-        ) : (
-          <Text variant="title" tone={textTone}>
+  const inner = (
+    <View style={styles.content}>
+      {loading ? (
+        <ActivityIndicator color={solid ? theme.colors.onPrimary : theme.colors.primary} />
+      ) : (
+        <>
+          {icon ? <Icon name={icon} tone={textTone} size="sm" /> : null}
+          <Text variant="label" tone={textTone}>
             {title}
           </Text>
+        </>
+      )}
+    </View>
+  );
+
+  const radiusStyle = { borderRadius: theme.radius.lg };
+  const handlePress = (e: GestureResponderEvent) => {
+    haptic.light();
+    onPress?.(e);
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale }], alignSelf: fullWidth ? 'stretch' : 'flex-start' }}>
+      <Pressable
+        disabled={disabled || loading}
+        onPress={handlePress}
+        onPressIn={() => animate(0.97)}
+        onPressOut={() => animate(1)}
+        style={[{ opacity: disabled ? 0.45 : 1 }, style as object]}
+        {...rest}
+      >
+        {isPrimary ? (
+          <LinearGradient
+            colors={theme.gradients.brand}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.base, radiusStyle, { paddingVertical: padV }, theme.shadow.sm]}
+          >
+            {inner}
+          </LinearGradient>
+        ) : (
+          <View
+            style={[
+              styles.base,
+              radiusStyle,
+              {
+                paddingVertical: padV,
+                backgroundColor: isDanger ? theme.colors.danger : isGhost ? 'transparent' : theme.colors.card,
+                borderColor: theme.colors.border,
+                borderWidth: variant === 'secondary' ? StyleSheet.hairlineWidth : 0,
+              },
+              isDanger ? theme.shadow.sm : null,
+            ]}
+          >
+            {inner}
+          </View>
         )}
-      </View>
-    </Pressable>
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  base: { alignItems: 'center', justifyContent: 'center' },
+  base: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   content: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 });

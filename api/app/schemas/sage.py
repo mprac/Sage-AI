@@ -41,10 +41,11 @@ class RenameRequest(BaseModel):
 class Cosmetic(BaseModel):
     id: str
     name: str
-    type: str            # hat | theme | accessory
-    emoji: str
-    price_credits: int   # 0 if unlock-by-level only
-    unlock_level: int    # 0 if purchasable at any level
+    type: str                  # hat | theme | accessory
+    icon: str                  # lucide icon name (matches the mobile Icon map)
+    color: str | None = None   # for `theme` cosmetics: recolors the avatar disc
+    price_credits: int         # 0 if unlock-by-level only
+    unlock_level: int          # 0 if purchasable at any level
 
 
 class FeedResult(BaseModel):

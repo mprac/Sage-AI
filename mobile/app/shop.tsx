@@ -1,12 +1,14 @@
-/** Sage's closet — unlock cosmetics by level or buy with credits, then equip. */
+/** Sage's closet — premium cosmetic tiles (icons + color themes). Unlock by level or credits. */
+import { useRouter } from 'expo-router';
 import React from 'react';
-import { Alert, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 
-import { Button, Card, Screen, Text } from '../src/components/ui';
+import { Icon, type IconName, Screen, Text } from '../src/components/ui';
 import { useCosmetics, useSage } from '../src/features/sage/useSage';
 import { ApiError } from '../src/lib/api';
+import { haptic } from '../src/lib/haptics';
 import { useTheme } from '../src/theme';
-import { useRouter } from 'expo-router';
+import type { Cosmetic } from '../src/types/api';
 
 export default function Shop() {
   const theme = useTheme();
@@ -22,8 +24,10 @@ export default function Shop() {
     );
   }
 
-  function act(id: string) {
-    buyCosmetic.mutate(id, {
+  function act(c: Cosmetic) {
+    haptic.light();
+    buyCosmetic.mutate(c.id, {
+      onSuccess: () => haptic.success(),
       onError: (e) => {
         if (e instanceof ApiError && e.status === 402) {
           Alert.alert('Out of credits', 'Get more credits to buy this.', [
@@ -37,49 +41,109 @@ export default function Shop() {
     });
   }
 
+  const sections = ['hat', 'accessory', 'theme'] as const;
+  const titles: Record<string, string> = { hat: 'Hats', accessory: 'Accessories', theme: 'Avatar themes' };
+
   return (
     <Screen scroll>
-      <Text variant="heading">Sage's closet 🎩</Text>
+      <Text variant="heading">Closet</Text>
       <Text variant="body" tone="muted">Dress up your chef. Unlock by leveling up or with credits.</Text>
 
-      <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
-        {cosmetics.map((c) => {
-          const owned = sage.unlocked_cosmetics.includes(c.id);
-          const equipped = sage.equipped?.[c.type] === c.id;
-          const lockedByLevel = !owned && c.unlock_level > 0 && c.price_credits === 0 && sage.level < c.unlock_level;
-
-          const label = equipped
-            ? 'Equipped ✓'
-            : owned
-              ? 'Equip'
-              : lockedByLevel
-                ? `Level ${c.unlock_level}`
-                : c.price_credits > 0
-                  ? `Buy · ${c.price_credits}`
-                  : `Unlock (Lvl ${c.unlock_level})`;
-
-          return (
-            <Card key={c.id}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
-                  <Text style={{ fontSize: 30 }}>{c.emoji}</Text>
-                  <View>
-                    <Text variant="title">{c.name}</Text>
-                    <Text variant="caption" tone="muted">{c.type}</Text>
-                  </View>
-                </View>
-                <Button
-                  title={label}
-                  fullWidth={false}
-                  variant={equipped ? 'ghost' : 'secondary'}
-                  disabled={equipped || lockedByLevel || buyCosmetic.isPending}
-                  onPress={() => act(c.id)}
+      {sections.map((section) => {
+        const items = cosmetics.filter((c) => c.type === section);
+        if (!items.length) return null;
+        return (
+          <View key={section} style={{ gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
+            <Text variant="overline" tone="muted">{titles[section].toUpperCase()}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm }}>
+              {items.map((c) => (
+                <Tile
+                  key={c.id}
+                  cosmetic={c}
+                  owned={sage.unlocked_cosmetics.includes(c.id)}
+                  equipped={sage.equipped?.[c.type] === c.id}
+                  level={sage.level}
+                  busy={buyCosmetic.isPending}
+                  onPress={() => act(c)}
                 />
-              </View>
-            </Card>
-          );
-        })}
-      </View>
+              ))}
+            </View>
+          </View>
+        );
+      })}
     </Screen>
+  );
+}
+
+function Tile({
+  cosmetic: c,
+  owned,
+  equipped,
+  level,
+  busy,
+  onPress,
+}: {
+  cosmetic: Cosmetic;
+  owned: boolean;
+  equipped: boolean;
+  level: number;
+  busy: boolean;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  const lockedByLevel = !owned && c.unlock_level > 0 && c.price_credits === 0 && level < c.unlock_level;
+
+  const status = equipped
+    ? 'Equipped'
+    : owned
+      ? 'Equip'
+      : lockedByLevel
+        ? `Level ${c.unlock_level}`
+        : c.price_credits > 0
+          ? `${c.price_credits}`
+          : `Lvl ${c.unlock_level}`;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={equipped || lockedByLevel || busy}
+      style={{
+        width: '31%',
+        minWidth: 100,
+        aspectRatio: 0.82,
+        backgroundColor: theme.colors.card,
+        borderWidth: equipped ? 2 : 1,
+        borderColor: equipped ? theme.colors.primary : theme.colors.border,
+        borderRadius: theme.radius.lg,
+        padding: theme.spacing.sm,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: theme.spacing.xs,
+        opacity: lockedByLevel ? 0.55 : 1,
+      }}
+    >
+      <View
+        style={{
+          width: 52,
+          height: 52,
+          borderRadius: 26,
+          backgroundColor: c.type === 'theme' && c.color ? c.color : theme.colors.primarySoft,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Icon name={c.icon as IconName} tone="primary" size="md" />
+      </View>
+      <Text variant="caption" tone="text" numberOfLines={1} style={{ textAlign: 'center' }}>
+        {c.name}
+      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+        {!owned && c.price_credits > 0 ? <Icon name="coins" tone="primary" size="sm" /> : null}
+        {owned && !equipped ? <Icon name="check" tone="success" size="sm" /> : null}
+        <Text variant="overline" tone={equipped ? 'primary' : lockedByLevel ? 'subtle' : 'muted'}>
+          {status.toUpperCase()}
+        </Text>
+      </View>
+    </Pressable>
   );
 }

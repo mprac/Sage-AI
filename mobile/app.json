@@ -21,7 +21,9 @@
     },
     "android": {
       "package": "com.sage.app",
-      "permissions": ["CAMERA"]
+      "permissions": [
+        "CAMERA"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -29,12 +31,17 @@
       "expo-notifications",
       [
         "expo-camera",
-        { "cameraPermission": "Sage uses your camera to identify the food you have." }
-      ]
+        {
+          "cameraPermission": "Sage uses your camera to identify the food you have."
+        }
+      ],
+      "expo-font"
     ],
     "extra": {
       "apiUrl": "http://127.0.0.1:8000",
-      "router": { "origin": false }
+      "router": {
+        "origin": false
+      }
     }
   }
 }

@@ -73,8 +73,9 @@ export interface SagePet {
 export interface Cosmetic {
   id: string;
   name: string;
-  type: string;
-  emoji: string;
+  type: string; // hat | theme | accessory
+  icon: string; // lucide icon name
+  color?: string | null; // for theme cosmetics
   price_credits: number;
   unlock_level: number;
 }
@@ -84,4 +85,48 @@ export interface FeedResult {
   leveled_up: boolean;
   revived: boolean;
   credits_balance?: number | null;
+}
+
+export interface RecipeIngredient {
+  item: string;
+  quantity?: string | null;
+}
+
+export interface RecipeStep {
+  instruction: string;
+  tip?: string | null;
+}
+
+export interface PlaylistTrack {
+  title: string;
+  artist: string;
+}
+
+export interface Playlist {
+  vibe: string;
+  search_query: string;
+  tracks: PlaylistTrack[];
+}
+
+export interface Recipe {
+  title: string;
+  summary: string;
+  servings?: number | null;
+  total_time_minutes?: number | null;
+  ingredients: RecipeIngredient[];
+  steps: RecipeStep[];
+  playlist?: Playlist | null;
+}
+
+export interface GeneratedRecipe {
+  recipe: Recipe;
+  credits_spent: number;
+  balance: number;
+}
+
+export interface RecipeSummary {
+  id: string;
+  title: string;
+  total_time_minutes?: number | null;
+  created_at: string;
 }

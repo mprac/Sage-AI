@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, Image, View } from 'react-native';
 
-import { Button, Card, Screen, Text } from '../../src/components/ui';
+import { Button, Card, Icon, Screen, Text } from '../../src/components/ui';
 import { ApiError, api } from '../../src/lib/api';
 import { useTheme } from '../../src/theme';
 import { useRecognitions } from '../../src/store/recognition';
@@ -73,9 +73,10 @@ export default function Cook() {
               backgroundColor: theme.colors.surface,
               alignItems: 'center',
               justifyContent: 'center',
+              gap: theme.spacing.sm,
             }}
           >
-            <Text variant="display">📸</Text>
+            <Icon name="camera" size="xl" tone="muted" />
             <Text tone="muted">No photo yet</Text>
           </View>
         )}

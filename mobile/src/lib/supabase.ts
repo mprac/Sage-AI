@@ -9,9 +9,11 @@
  * our app uses (`auth.signUp`, `auth.signInWithPassword`, `auth.signOut`, `auth.getSession`,
  * `auth.onAuthStateChange`) so the rest of the app is unchanged.
  *
- * Session is kept in memory (fine for Expo Go testing — it just doesn't persist across a full
- * app restart). A dev/production build can reintroduce persistent storage.
+ * Session is persisted with expo-secure-store (reliable in Expo Go, unlike AsyncStorage) and the
+ * access token is auto-refreshed, so the user stays signed in across app restarts.
  */
+
+import * as SecureStore from 'expo-secure-store';
 
 const url = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').trim().replace(/\/+$/, '');
 const anonKey = (
@@ -19,6 +21,8 @@ const anonKey = (
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
   ''
 ).trim();
+
+const SESSION_KEY = 'sage.session';
 
 console.log(`[auth] REST client · host: ${url ? url.replace('https://', '') : 'MISSING'} · key: ${anonKey ? 'yes' : 'NO'}`);
 
@@ -90,14 +94,59 @@ async function _post(path: string, payload: object) {
   }
 }
 
+async function _persist(session: Session | null) {
+  try {
+    if (session) await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
+    else await SecureStore.deleteItemAsync(SESSION_KEY);
+  } catch {
+    /* secure-store unavailable — session stays in memory only */
+  }
+}
+
+function _setSession(session: Session | null, event: string) {
+  _session = session;
+  void _persist(session);
+  _emit(event);
+}
+
+/** Exchange a refresh token for a fresh session. Returns the new session or null. */
+async function _refresh(refreshToken: string): Promise<Session | null> {
+  const { session } = await _post('/auth/v1/token?grant_type=refresh_token', {
+    refresh_token: refreshToken,
+  });
+  if (session) _setSession(session, 'TOKEN_REFRESHED');
+  return session;
+}
+
+function _isExpired(session: Session, skewSeconds = 60): boolean {
+  if (!session.expires_at) return false;
+  return session.expires_at <= Math.floor(Date.now() / 1000) + skewSeconds;
+}
+
+/** Load a persisted session on app launch, refreshing it if the access token has expired. */
+export async function restoreSession(): Promise<Session | null> {
+  try {
+    const raw = await SecureStore.getItemAsync(SESSION_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw) as Session;
+    if (_isExpired(session)) {
+      if (!session.refresh_token) return null;
+      const refreshed = await _refresh(session.refresh_token);
+      if (!refreshed) await _persist(null);
+      return refreshed;
+    }
+    _session = session;
+    return session;
+  } catch {
+    return null;
+  }
+}
+
 export const supabase = {
   auth: {
     async signUp({ email, password }: { email: string; password: string }) {
       const { session, error } = await _post('/auth/v1/signup', { email, password });
-      if (session) {
-        _session = session;
-        _emit('SIGNED_IN');
-      }
+      if (session) _setSession(session, 'SIGNED_IN');
       return { data: { session, user: session?.user ?? null }, error };
     },
 
@@ -106,17 +155,13 @@ export const supabase = {
         email,
         password,
       });
-      if (session) {
-        _session = session;
-        _emit('SIGNED_IN');
-      }
+      if (session) _setSession(session, 'SIGNED_IN');
       return { data: { session, user: session?.user ?? null }, error };
     },
 
     async signOut() {
       const token = _session?.access_token;
-      _session = null;
-      _emit('SIGNED_OUT');
+      _setSession(null, 'SIGNED_OUT');
       if (token) {
         // Best-effort server-side logout; ignore failures.
         fetch(`${url}/auth/v1/logout`, {
@@ -140,7 +185,11 @@ export const supabase = {
   },
 };
 
-/** Current access token (Supabase JWT) for Authorization headers, or null if signed out. */
+/** Current access token (Supabase JWT) for Authorization headers, or null if signed out.
+ *  Refreshes first if the token is at/near expiry so backend calls stay authorized. */
 export async function getAccessToken(): Promise<string | null> {
+  if (_session && _isExpired(_session) && _session.refresh_token) {
+    await _refresh(_session.refresh_token);
+  }
   return _session?.access_token ?? null;
 }

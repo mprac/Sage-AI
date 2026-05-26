@@ -1,56 +1,80 @@
-/** Sage's animated avatar — emoji-based (Lottie can swap in later), with an equipped hat overlay. */
+/** Sage's avatar — chef mark inside an animated vitality ring with a glow, theme color, and an
+ *  optional accessory icon badge. Calmly hovers up and down (slows when fainted). */
 import React, { useEffect, useRef } from 'react';
-import { Animated, View } from 'react-native';
+import { Animated, Easing, View } from 'react-native';
 
+import { Icon, type IconName } from '../../components/ui';
 import { useTheme } from '../../theme';
-import { Text } from '../../components/ui';
+import { VitalityRing } from './VitalityRing';
 
 interface Props {
-  moodEmoji: string;
-  hatEmoji?: string | null;
+  vitality: number;
+  moodColor: string;
+  themeColor?: string | null;
+  accessoryIcon?: IconName | null;
   dormant?: boolean;
   size?: number;
 }
 
-export function SageAvatar({ moodEmoji, hatEmoji, dormant, size = 140 }: Props) {
+export function SageAvatar({ vitality, moodColor, themeColor, accessoryIcon, dormant, size = 156 }: Props) {
   const theme = useTheme();
-  const bob = useRef(new Animated.Value(0)).current;
+  const disc = size - 24;
+  const hover = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Gentle idle bob; slows to a near-stop when fainted.
+    const duration = dormant ? 2800 : 1900; // slower, fainter when dormant
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(bob, { toValue: 1, duration: dormant ? 2600 : 1100, useNativeDriver: true }),
-        Animated.timing(bob, { toValue: 0, duration: dormant ? 2600 : 1100, useNativeDriver: true }),
+        Animated.timing(hover, { toValue: 1, duration, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(hover, { toValue: 0, duration, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ]),
     );
     loop.start();
     return () => loop.stop();
-  }, [bob, dormant]);
+  }, [hover, dormant]);
 
-  const translateY = bob.interpolate({ inputRange: [0, 1], outputRange: [0, dormant ? -2 : -10] });
+  const translateY = hover.interpolate({ inputRange: [0, 1], outputRange: [0, dormant ? -3 : -8] });
 
   return (
-    <View style={{ alignItems: 'center', justifyContent: 'flex-end', height: size + 24 }}>
-      {hatEmoji ? (
-        <Animated.View style={{ transform: [{ translateY }], marginBottom: -size * 0.32, zIndex: 2 }}>
-          <Text style={{ fontSize: size * 0.4 }}>{hatEmoji}</Text>
-        </Animated.View>
+    <Animated.View style={{ width: size, height: size, opacity: dormant ? 0.7 : 1, transform: [{ translateY }] }}>
+      <VitalityRing value={vitality} size={size} color={moodColor} track={theme.colors.divider} strokeWidth={7}>
+        <View
+          style={[
+            {
+              width: disc,
+              height: disc,
+              borderRadius: disc / 2,
+              backgroundColor: themeColor ?? theme.colors.primarySoft,
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+            theme.shadow.glow,
+            { shadowColor: moodColor },
+          ]}
+        >
+          <Icon name="chef-hat" size={Math.round(disc * 0.46)} tone="primary" />
+        </View>
+      </VitalityRing>
+
+      {accessoryIcon ? (
+        <View
+          style={{
+            position: 'absolute',
+            right: 2,
+            bottom: 2,
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: theme.colors.card,
+            borderWidth: 3,
+            borderColor: theme.colors.background,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Icon name={accessoryIcon} tone="primary" size="md" />
+        </View>
       ) : null}
-      <Animated.View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: theme.colors.accentSoft,
-          alignItems: 'center',
-          justifyContent: 'center',
-          transform: [{ translateY }],
-          opacity: dormant ? 0.6 : 1,
-        }}
-      >
-        <Text style={{ fontSize: size * 0.55 }}>{moodEmoji}</Text>
-      </Animated.View>
-    </View>
+    </Animated.View>
   );
 }

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import React from 'react';
 import { View } from 'react-native';
 
-import { Button, Card, Screen, Text } from '../src/components/ui';
+import { Button, Card, Gradient, Icon, Screen, Text } from '../src/components/ui';
 import { usePurchases } from '../src/features/billing/usePurchases';
 import { api } from '../src/lib/api';
 import { useTheme } from '../src/theme';
@@ -26,11 +26,23 @@ export default function Wallet() {
 
   return (
     <Screen scroll>
-      <Card style={{ alignItems: 'center', gap: theme.spacing.xs }}>
-        <Text variant="caption" tone="muted">Balance</Text>
-        <Text variant="display" tone="primary">✦ {data?.balance ?? '—'}</Text>
-        <Text variant="caption" tone="muted">credits</Text>
-      </Card>
+      <Gradient
+        name="brand"
+        style={{
+          borderRadius: theme.radius.lg,
+          padding: theme.spacing.xl,
+          alignItems: 'center',
+          gap: theme.spacing.xs,
+          ...theme.shadow.card,
+        }}
+      >
+        <Text variant="overline" tone="onPrimary" style={{ opacity: 0.85 }}>BALANCE</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+          <Icon name="coins" tone="onPrimary" size="lg" />
+          <Text variant="hero" tone="onPrimary">{data?.balance ?? '—'}</Text>
+        </View>
+        <Text variant="caption" tone="onPrimary" style={{ opacity: 0.85 }}>credits</Text>
+      </Gradient>
 
       <Text variant="title" style={{ marginTop: theme.spacing.md }}>Get more credits</Text>
       {packages.length === 0 ? (
@@ -61,24 +73,41 @@ export default function Wallet() {
       )}
 
       <Text variant="title" style={{ marginTop: theme.spacing.md }}>Activity</Text>
-      {data?.ledger.map((e) => (
-        <View
-          key={e.id}
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            paddingVertical: theme.spacing.sm,
-            borderBottomWidth: 1,
-            borderBottomColor: theme.colors.border,
-          }}
-        >
-          <Text variant="body">{e.reason}</Text>
-          <Text variant="body" tone={e.delta >= 0 ? 'success' : 'muted'}>
-            {e.delta >= 0 ? '+' : ''}
-            {e.delta}
-          </Text>
-        </View>
-      ))}
+      {data?.ledger.map((e) => {
+        const credit = e.delta >= 0;
+        return (
+          <View
+            key={e.id}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: theme.spacing.md,
+              paddingVertical: theme.spacing.sm,
+              borderBottomWidth: 1,
+              borderBottomColor: theme.colors.divider,
+            }}
+          >
+            <View
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                backgroundColor: credit ? theme.colors.primarySoft : theme.colors.surface,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Icon name={credit ? 'plus' : 'utensils'} tone={credit ? 'success' : 'muted'} size="sm" />
+            </View>
+            <Text variant="body" style={{ flex: 1, textTransform: 'capitalize' }}>
+              {e.reason.replace(/_/g, ' ')}
+            </Text>
+            <Text variant="title" tone={credit ? 'success' : 'text'}>
+              {credit ? '+' : ''}{e.delta}
+            </Text>
+          </View>
+        );
+      })}
     </Screen>
   );
 }

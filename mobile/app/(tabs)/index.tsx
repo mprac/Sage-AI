@@ -1,17 +1,28 @@
-/** Sage home — your AI chef companion. Vitality, mood, level, streak + care actions. */
+/** Sage home — a single fixed screen (no scroll), solid background, no gradient. Avatar + stats +
+ *  actions distributed to fit. Theme-driven + haptics. */
 import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
-import { ActivityIndicator, Alert, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, View } from 'react-native';
 
-import { Button, Card, Screen, Text } from '../../src/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Icon,
+  type IconName,
+  Screen,
+  Text,
+} from '../../src/components/ui';
 import { SageAvatar } from '../../src/features/sage/SageAvatar';
 import { scheduleHungerReminder } from '../../src/features/sage/notifications';
 import { useCosmetics, useSage } from '../../src/features/sage/useSage';
 import { ApiError } from '../../src/lib/api';
+import { haptic } from '../../src/lib/haptics';
 import { useTheme } from '../../src/theme';
-import type { SageState } from '../../src/types/api';
+import type { Cosmetic, SageState } from '../../src/types/api';
 
-function barColor(state: SageState, theme: ReturnType<typeof useTheme>) {
+function moodColor(state: SageState, theme: ReturnType<typeof useTheme>) {
   if (state === 'thriving' || state === 'content') return theme.colors.success;
   if (state === 'peckish') return theme.colors.warning;
   return theme.colors.danger;
@@ -19,8 +30,30 @@ function barColor(state: SageState, theme: ReturnType<typeof useTheme>) {
 
 function Bar({ value, color, track }: { value: number; color: string; track: string }) {
   return (
-    <View style={{ height: 12, borderRadius: 999, backgroundColor: track, overflow: 'hidden' }}>
+    <View style={{ height: 10, borderRadius: 999, backgroundColor: track, overflow: 'hidden' }}>
       <View style={{ width: `${Math.max(0, Math.min(100, value))}%`, height: '100%', backgroundColor: color }} />
+    </View>
+  );
+}
+
+function Stat({ icon, value, label }: { icon: IconName; value: number; label: string }) {
+  const theme = useTheme();
+  return (
+    <View style={{ flex: 1, alignItems: 'center', gap: 5 }}>
+      <View
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          backgroundColor: theme.colors.primarySoft,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Icon name={icon} tone="primary" size="sm" />
+      </View>
+      <Text variant="title">{value}</Text>
+      <Text variant="caption" tone="muted">{label}</Text>
     </View>
   );
 }
@@ -31,7 +64,6 @@ export default function SageHome() {
   const { data: sage, isLoading, isError, refetch, treat, rename } = useSage();
   const { data: cosmetics } = useCosmetics();
 
-  // Reschedule the local "getting hungry" reminder whenever Sage's predicted state changes.
   useEffect(() => {
     if (sage) scheduleHungerReminder(sage);
   }, [sage?.hours_until_hungry, sage?.is_dormant]);
@@ -39,14 +71,13 @@ export default function SageHome() {
   if (isError && !sage) {
     return (
       <Screen>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: theme.spacing.md }}>
-          <Text variant="heading">Can't reach the kitchen</Text>
-          <Text tone="muted" style={{ textAlign: 'center' }}>
-            Couldn't connect to the server. Make sure the backend is running and your phone is on the
-            same Wi-Fi.
-          </Text>
-          <Button title="Retry" fullWidth={false} onPress={() => refetch()} />
-        </View>
+        <EmptyState
+          icon="refresh"
+          title="Can't reach the kitchen"
+          subtitle="Couldn't connect to the server. Check the backend is running and you're on the same Wi-Fi."
+          actionLabel="Retry"
+          onAction={() => refetch()}
+        />
       </Screen>
     );
   }
@@ -61,8 +92,10 @@ export default function SageHome() {
     );
   }
 
-  const hatId = sage.equipped?.hat;
-  const hatEmoji = cosmetics?.find((c) => c.id === hatId)?.emoji ?? null;
+  const find = (id?: string) => (cosmetics ?? []).find((c: Cosmetic) => c.id === id);
+  const accessoryIcon = (find(sage.equipped?.hat)?.icon ?? find(sage.equipped?.accessory)?.icon) as IconName | undefined;
+  const themeColor = find(sage.equipped?.theme)?.color ?? null;
+  const mood = moodColor(sage.state, theme);
   const xpPct = (sage.xp / sage.xp_to_next) * 100;
 
   function promptRename() {
@@ -72,10 +105,12 @@ export default function SageHome() {
   }
 
   function giveTreat() {
+    haptic.medium();
     treat.mutate(undefined, {
+      onSuccess: () => haptic.success(),
       onError: (e) => {
         if (e instanceof ApiError && e.status === 402) {
-          Alert.alert('Out of credits', 'Get more credits to treat Sage.', [
+          Alert.alert('Out of credits', `Get more credits to treat ${sage!.name}.`, [
             { text: 'Not now' },
             { text: 'Get credits', onPress: () => router.push('/wallet') },
           ]);
@@ -85,56 +120,65 @@ export default function SageHome() {
   }
 
   return (
-    <Screen scroll>
-      <View style={{ alignItems: 'center', gap: theme.spacing.sm }}>
-        <SageAvatar moodEmoji={sage.mood_emoji} hatEmoji={hatEmoji} dormant={sage.is_dormant} />
-        <Text variant="heading" onPress={promptRename}>
-          {sage.name} ✎
-        </Text>
-        <Text variant="body" tone="muted" style={{ textAlign: 'center' }}>
-          {sage.message}
-        </Text>
+    <Screen>
+      <View style={{ flex: 1, justifyContent: 'space-between' }}>
+        {/* Hero (no gradient, solid background) */}
+        <View style={{ alignItems: 'center', gap: theme.spacing.sm, paddingTop: theme.spacing.sm }}>
+          <SageAvatar
+            vitality={sage.vitality}
+            moodColor={mood}
+            themeColor={themeColor}
+            accessoryIcon={accessoryIcon}
+            dormant={sage.is_dormant}
+          />
+          <Pressable
+            onPress={promptRename}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs, marginTop: theme.spacing.xs }}
+          >
+            <Text variant="display">{sage.name}</Text>
+            <Icon name="pencil" tone="muted" size="sm" />
+          </Pressable>
+          <Badge label={sage.mood} fg={mood} bg={theme.colors.surface} />
+          <Text tone="text" style={{ textAlign: 'center', maxWidth: 320, fontSize: 24, lineHeight: 32 }}>
+            {sage.message}
+          </Text>
+        </View>
+
+        {/* Stats */}
+        <Card variant="elevated" style={{ gap: theme.spacing.md }}>
+          <View style={{ gap: theme.spacing.xs }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text variant="caption" tone="muted">Vitality</Text>
+              <Text variant="caption" tone="muted">{sage.vitality}/100</Text>
+            </View>
+            <Bar value={sage.vitality} color={mood} track={theme.colors.surface} />
+          </View>
+          <View style={{ gap: theme.spacing.xs }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text variant="caption" tone="muted">Level {sage.level}</Text>
+              <Text variant="caption" tone="muted">{sage.xp}/{sage.xp_to_next} XP</Text>
+            </View>
+            <Bar value={xpPct} color={theme.colors.primary} track={theme.colors.surface} />
+          </View>
+          <View style={{ height: 1, backgroundColor: theme.colors.divider }} />
+          <View style={{ flexDirection: 'row' }}>
+            <Stat icon="flame" value={sage.streak_days} label="day streak" />
+            <Stat icon="heart" value={sage.bond_level} label="bond" />
+            <Stat icon="trophy" value={sage.longest_streak} label="best" />
+          </View>
+        </Card>
+
+        {/* Actions */}
+        <View style={{ gap: theme.spacing.sm }}>
+          <Button
+            title={sage.is_dormant ? `Cook to revive ${sage.name}` : `Cook now — feed ${sage.name}`}
+            icon="camera"
+            onPress={() => router.navigate('/cook')}
+          />
+          <Button title="Give a treat (40 credits)" variant="secondary" icon="gem" loading={treat.isPending} onPress={giveTreat} />
+          <Button title={`${sage.name}'s closet`} variant="ghost" icon="shopping-bag" onPress={() => router.push('/shop')} />
+        </View>
       </View>
-
-      <Card style={{ gap: theme.spacing.md, marginTop: theme.spacing.md }}>
-        <View style={{ gap: theme.spacing.xs }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text variant="caption" tone="muted">Vitality · {sage.mood}</Text>
-            <Text variant="caption" tone="muted">{sage.vitality}/100</Text>
-          </View>
-          <Bar value={sage.vitality} color={barColor(sage.state, theme)} track={theme.colors.surface} />
-        </View>
-
-        <View style={{ gap: theme.spacing.xs }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text variant="caption" tone="muted">Level {sage.level}</Text>
-            <Text variant="caption" tone="muted">{sage.xp}/{sage.xp_to_next} XP</Text>
-          </View>
-          <Bar value={xpPct} color={theme.colors.primary} track={theme.colors.surface} />
-        </View>
-
-        <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
-          <View style={{ alignItems: 'center' }}>
-            <Text variant="title">🔥 {sage.streak_days}</Text>
-            <Text variant="caption" tone="muted">day streak</Text>
-          </View>
-          <View style={{ alignItems: 'center' }}>
-            <Text variant="title">💛 {sage.bond_level}</Text>
-            <Text variant="caption" tone="muted">bond</Text>
-          </View>
-          <View style={{ alignItems: 'center' }}>
-            <Text variant="title">🏆 {sage.longest_streak}</Text>
-            <Text variant="caption" tone="muted">best streak</Text>
-          </View>
-        </View>
-      </Card>
-
-      <Button
-        title={sage.is_dormant ? 'Cook to revive Sage! 🍳' : 'Cook now — feed Sage 🍳'}
-        onPress={() => router.navigate('/cook')}
-      />
-      <Button title="Give a treat (40 credits) 🍬" variant="secondary" loading={treat.isPending} onPress={giveTreat} />
-      <Button title="Sage's closet 🎩" variant="ghost" onPress={() => router.push('/shop')} />
     </Screen>
   );
 }

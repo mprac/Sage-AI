@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.core.security import CurrentUser
 from app.db.models import ChatMessage, ChatSession, Recognition
 from app.db.session import DbSession, SessionLocal
-from app.schemas.chat import ChatDelta, ChatDone, ChatError, ChatRequest
+from app.schemas.chat import ChatDelta, ChatDone, ChatError, ChatRequest, ChatSummary, ChatTurn
 from app.schemas.recognition import DetectedFood
 from app.services import credits, memory, sage_pet
 from app.services.anthropic_client import Usage
@@ -38,14 +38,15 @@ async def _load_foods(db: DbSession, recognition_id: str | None, fallback: list[
 async def chat(req: ChatRequest, user: CurrentUser, db: DbSession):
     await credits.ensure_can_start(db, user.id)
 
-    # Resolve / create the chat session.
+    # Resolve / create the chat session. New sessions are titled from the first user message.
+    title = req.message.strip()[:60]
     if req.session_id:
         session = await db.get(ChatSession, req.session_id)
         if session is None or str(session.user_id) != user.id:
-            session = ChatSession(user_id=user.id, recognition_id=req.recognition_id)
+            session = ChatSession(user_id=user.id, recognition_id=req.recognition_id, title=title)
             db.add(session)
     else:
-        session = ChatSession(user_id=user.id, recognition_id=req.recognition_id)
+        session = ChatSession(user_id=user.id, recognition_id=req.recognition_id, title=title)
         db.add(session)
     await db.flush()
     session_id = str(session.id)
@@ -125,3 +126,34 @@ async def chat(req: ChatRequest, user: CurrentUser, db: DbSession):
             pass
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@router.get("/chats", response_model=list[ChatSummary])
+async def list_chats(user: CurrentUser, db: DbSession) -> list[ChatSummary]:
+    """The user's past conversations, newest first (for the Chats tab)."""
+    rows = await db.execute(
+        select(ChatSession)
+        .where(ChatSession.user_id == user.id)
+        .order_by(ChatSession.created_at.desc())
+        .limit(100)
+    )
+    return [
+        ChatSummary(id=str(s.id), title=s.title or "Untitled chat", created_at=s.created_at)
+        for s in rows.scalars().all()
+    ]
+
+
+@router.get("/chats/{session_id}/messages", response_model=list[ChatTurn])
+async def list_chat_messages(session_id: str, user: CurrentUser, db: DbSession) -> list[ChatTurn]:
+    """Ordered messages for one of the user's chat sessions (owner-checked)."""
+    session = await db.get(ChatSession, session_id)
+    if session is None or str(session.user_id) != user.id:
+        from fastapi import HTTPException, status
+
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found")
+    rows = await db.execute(
+        select(ChatMessage)
+        .where(ChatMessage.session_id == session_id)
+        .order_by(ChatMessage.created_at)
+    )
+    return [ChatTurn(role=m.role, content=m.content) for m in rows.scalars().all()]

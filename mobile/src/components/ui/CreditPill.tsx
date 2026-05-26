@@ -2,6 +2,7 @@ import React from 'react';
 import { View } from 'react-native';
 
 import { useTheme } from '../../theme';
+import { Icon } from './Icon';
 import { Text } from './Text';
 
 /** Small header chip showing the live credit balance. */
@@ -19,8 +20,9 @@ export function CreditPill({ balance }: { balance: number | null }) {
         borderRadius: theme.radius.pill,
       }}
     >
+      <Icon name="coins" tone="primary" size="sm" />
       <Text variant="caption" tone="primary">
-        ✦ {balance ?? '—'} credits
+        {balance ?? '—'}
       </Text>
     </View>
   );

@@ -44,6 +44,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(json),
     }),
+  del: <T = void>(path: string) => request<T>(path, { method: 'DELETE' }),
   /** Upload an image (multipart) to /recognize. */
   recognize: async <T>(imageUri: string): Promise<T> => {
     const form = new FormData();

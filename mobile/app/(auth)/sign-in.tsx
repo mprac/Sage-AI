@@ -1,8 +1,8 @@
-/** Sign in / sign up with email. (Social providers can be added via supabase.auth.signInWithOAuth.) */
+/** Sign in / sign up — the first impression. Warm, editorial, premium. */
 import React, { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, View } from 'react-native';
 
-import { Button, Input, Screen, Text } from '../../src/components/ui';
+import { Button, Icon, Input, Screen, Text } from '../../src/components/ui';
 import { supabase } from '../../src/lib/supabase';
 import { useTheme } from '../../src/theme';
 
@@ -23,33 +23,68 @@ export default function SignIn() {
         Alert.alert('Almost there', 'Check your email to confirm your account, then sign in.');
         setMode('signin');
       }
-      // On success the auth listener flips the session and the router redirects automatically.
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <Screen scroll>
-      <View style={{ flex: 1, justifyContent: 'center', gap: theme.spacing.lg }}>
-        <View style={{ gap: theme.spacing.xs }}>
-          <Text variant="display">🌿 Sage</Text>
-          <Text variant="body" tone="muted">
-            Your personal AI chef. Snap your ingredients and Sage tells you what to cook.
-          </Text>
-        </View>
+    <Screen edges={['top', 'bottom']}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={{ flex: 1, justifyContent: 'center', gap: theme.spacing.xl }}>
+          {/* Wordmark */}
+          <View style={{ gap: theme.spacing.sm }}>
+            <View
+              style={{
+                width: 60,
+                height: 60,
+                borderRadius: theme.radius.lg,
+                backgroundColor: theme.colors.primarySoft,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: theme.spacing.xs,
+              }}
+            >
+              <Icon name="chef-hat" tone="primary" size="lg" />
+            </View>
+            <Text variant="hero">Sage</Text>
+            <Text variant="body" tone="muted" style={{ maxWidth: 300 }}>
+              Your personal AI chef. Snap your ingredients and Sage turns them into the most amazing
+              meal you've ever made.
+            </Text>
+          </View>
 
-        <View style={{ gap: theme.spacing.md }}>
-          <Input label="Email" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholder="you@example.com" />
-          <Input label="Password" secureTextEntry value={password} onChangeText={setPassword} placeholder="••••••••" />
-          <Button title={mode === 'signin' ? 'Sign in' : 'Create account'} loading={loading} onPress={submit} />
-          <Button
-            title={mode === 'signin' ? 'New here? Create an account' : 'Have an account? Sign in'}
-            variant="ghost"
-            onPress={() => setMode((m) => (m === 'signin' ? 'signup' : 'signin'))}
-          />
+          {/* Form */}
+          <View style={{ gap: theme.spacing.md }}>
+            <Input
+              label="Email"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+            />
+            <Input
+              label="Password"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+            />
+            <Button
+              title={mode === 'signin' ? 'Sign in' : 'Create account'}
+              loading={loading}
+              onPress={submit}
+              style={{ marginTop: theme.spacing.xs }}
+            />
+            <Button
+              title={mode === 'signin' ? 'New here? Create an account' : 'Have an account? Sign in'}
+              variant="ghost"
+              onPress={() => setMode((m) => (m === 'signin' ? 'signup' : 'signin'))}
+            />
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }

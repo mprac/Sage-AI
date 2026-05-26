@@ -1,16 +1,22 @@
 import React from 'react';
 import { ScrollView, StyleSheet, View, type ViewProps } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { type Edge, SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTheme } from '../../theme';
 
 interface ScreenProps extends ViewProps {
   scroll?: boolean;
   padded?: boolean;
+  /**
+   * Safe-area edges to inset. Default `[]` — screens with a navigation header don't need a top
+   * inset (the header already offsets content; adding one double-insets and causes a shift).
+   * Headerless screens (e.g. sign-in) pass `['top','bottom']`.
+   */
+  edges?: Edge[];
 }
 
-/** Page wrapper: themed background, safe-area insets, optional scroll + padding. */
-export function Screen({ scroll, padded = true, style, children, ...rest }: ScreenProps) {
+/** Page wrapper: themed background, optional scroll + padding + safe-area edges. */
+export function Screen({ scroll, padded = true, edges = [], style, children, ...rest }: ScreenProps) {
   const theme = useTheme();
   const inner = (
     <View
@@ -21,9 +27,16 @@ export function Screen({ scroll, padded = true, style, children, ...rest }: Scre
     </View>
   );
   return (
-    <SafeAreaView style={[styles.flex, { backgroundColor: theme.colors.background }]} edges={['top']}>
+    <SafeAreaView style={[styles.flex, { backgroundColor: theme.colors.background }]} edges={edges}>
       {scroll ? (
-        <ScrollView contentContainerStyle={styles.grow} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={styles.grow}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="never"
+          bounces={false}
+          overScrollMode="never"
+        >
           {inner}
         </ScrollView>
       ) : (

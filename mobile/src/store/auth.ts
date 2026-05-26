@@ -1,7 +1,7 @@
 /** Auth state (Zustand), hydrated from Supabase. The session is the source of truth. */
 import { create } from 'zustand';
 
-import { supabase, type Session } from '../lib/supabase';
+import { restoreSession, supabase, type Session } from '../lib/supabase';
 
 interface AuthState {
   session: Session | null;
@@ -17,11 +17,10 @@ export const useAuth = create<AuthState>((set) => ({
 
 /** Wire Supabase auth changes into the store. Call once at app root. */
 export function initAuthListener() {
-  // Always resolve `ready`, even if the session lookup fails (bad/missing env, no network) —
-  // otherwise the app hangs on a blank loading screen instead of showing sign-in.
-  supabase.auth
-    .getSession()
-    .then(({ data }) => useAuth.getState().setSession(data.session))
+  // Restore a persisted session (refreshing if expired) so a returning user stays signed in.
+  // Always resolve `ready`, even on failure, so the app never hangs on a blank loading screen.
+  restoreSession()
+    .then((session) => useAuth.getState().setSession(session))
     .catch(() => useAuth.getState().setSession(null));
 
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {

@@ -140,6 +140,22 @@ class SagePet(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class SavedRecipe(Base):
+    __tablename__ = "saved_recipes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), index=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    servings: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_time_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ingredients: Mapped[list] = mapped_column(JSONB, default=list)
+    steps: Mapped[list] = mapped_column(JSONB, default=list)
+    playlist: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    recognition_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class CareEvent(Base):
     __tablename__ = "care_events"
 

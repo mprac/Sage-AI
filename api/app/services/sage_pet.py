@@ -36,12 +36,14 @@ TREAT_BOND = 5
 
 # ── Cosmetics catalog (static; unlock by level or buy with credits) ──────────
 COSMETICS: list[Cosmetic] = [
-    Cosmetic(id="hat_toque", name="Classic Toque", type="hat", emoji="👨‍🍳", price_credits=0, unlock_level=2),
-    Cosmetic(id="hat_party", name="Party Hat", type="hat", emoji="🥳", price_credits=150, unlock_level=0),
-    Cosmetic(id="hat_crown", name="Master Chef Crown", type="hat", emoji="👑", price_credits=0, unlock_level=5),
-    Cosmetic(id="theme_cozy", name="Cozy Kitchen", type="theme", emoji="🕯️", price_credits=200, unlock_level=0),
-    Cosmetic(id="theme_neon", name="Neon Diner", type="theme", emoji="🌆", price_credits=350, unlock_level=0),
-    Cosmetic(id="acc_apron", name="Lucky Apron", type="accessory", emoji="🧑‍🍳", price_credits=0, unlock_level=3),
+    Cosmetic(id="hat_toque", name="Classic Toque", type="hat", icon="chef-hat", price_credits=0, unlock_level=2),
+    Cosmetic(id="hat_party", name="Party Hat", type="hat", icon="party", price_credits=150, unlock_level=0),
+    Cosmetic(id="hat_crown", name="Master Chef Crown", type="hat", icon="crown", price_credits=0, unlock_level=5),
+    Cosmetic(id="acc_gem", name="Lucky Charm", type="accessory", icon="gem", price_credits=120, unlock_level=0),
+    Cosmetic(id="acc_leaf", name="Fresh Sprig", type="accessory", icon="leaf", price_credits=0, unlock_level=3),
+    Cosmetic(id="theme_cozy", name="Cozy Cream", type="theme", icon="sun", color="#F4E6CE", price_credits=200, unlock_level=0),
+    Cosmetic(id="theme_mint", name="Fresh Mint", type="theme", icon="leaf", color="#CFEFE0", price_credits=250, unlock_level=0),
+    Cosmetic(id="theme_dusk", name="Dusk", type="theme", icon="moon", color="#DfE3F0", price_credits=350, unlock_level=0),
 ]
 COSMETICS_BY_ID = {c.id: c for c in COSMETICS}
 
@@ -89,12 +91,12 @@ _BANDS = [
     (1, "weak", "Weak", "🥴"),
 ]
 _MESSAGES = {
-    "thriving": "Bursting with energy — let's cook something amazing! 🤩",
-    "content": "Feeling good and ready to help you cook. 😋",
-    "peckish": "Could go for a little something… what are we making? 🙂",
-    "hungry": "I'm getting pretty hungry — cook with me soon? 😟",
-    "weak": "So… faint… please cook something, chef. 🥴",
-    "fainted": "I fainted! Cook a meal to bring me back. 😵",
+    "thriving": "Bursting with energy — let's cook something amazing!",
+    "content": "Feeling good and ready to help you cook.",
+    "peckish": "Could go for a little something… what are we making?",
+    "hungry": "I'm getting pretty hungry — cook with me soon?",
+    "weak": "So… faint… please cook something, chef.",
+    "fainted": "I fainted! Cook a meal to bring me back.",
 }
 
 

@@ -1,0 +1,46 @@
+# ───────────────────────── Node / Expo (mobile) ─────────────────────────
+node_modules/
+.expo/
+.expo-shared/
+dist/
+web-build/
+*.tsbuildinfo
+.metro-health-check*
+mobile/ios/
+mobile/android/
+mobile/expo-env.d.ts
+
+# ───────────────────────── Python (api) ─────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# ───────────────────────── Secrets / env ─────────────────────────
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+
+# ───────────────────────── Editor / OS ─────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+*.log
+
+# ───────────────────────── Claude Code ─────────────────────────
+# settings.json + CLAUDE.md are shared and committed; local overrides are not.
+.claude/settings.local.json
+
+# ───────────────────────── Generated ─────────────────────────
+# (mobile/src/types/api.ts is generated from the backend OpenAPI schema,
+#  but we commit it so the app type-checks without running the backend.)

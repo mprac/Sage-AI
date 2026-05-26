@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": ["Read(~/.zshrc)"],
+    "Ask": [
+      "Edit(**/*.py)",
+      "Edit(**/*.ts)",
+      "Edit(**/*.tsx)",
+      "Edit(**/*.js)",
+      "Edit(**/*.jsx)",
+      "Edit(**/*.json)",
+      "Edit(**/*.html)"
+    ],
+    "deny": ["Bash(*)", "Read(./.env)", "Read(./.env.*)", "Read(./secrets/**)"]
+  },
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "0",
+    "OTEL_METRICS_EXPORTER": "none"
+  },
+  "files": {
+    "include": [
+      "**/*.py",
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.js",
+      "**/*.jsx",
+      "**/*.json",
+      "**/*.html"
+    ],
+    "exclude": [
+      "**/migrations/**",
+      "**/__pycache__/**",
+      "**/node_modules/**",
+      "**/vendor/**",
+      "**/BACKUPS/**",
+      "**/EXCLUDE_FUTURE/**"
+    ]
+  },
+  "context": {
+    "maxFileSizeKB": 200,
+    "maxFiles": 20
+  }
+}

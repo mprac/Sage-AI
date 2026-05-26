@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Sage",
+    "slug": "sage",
+    "scheme": "sage",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#FF6A3D"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sage.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Sage uses your camera to identify the food you have and suggest recipes.",
+        "NSPhotoLibraryUsageDescription": "Sage uses your photos to identify food and suggest recipes."
+      }
+    },
+    "android": {
+      "package": "com.sage.app",
+      "permissions": ["CAMERA"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-notifications",
+      [
+        "expo-camera",
+        { "cameraPermission": "Sage uses your camera to identify the food you have." }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "http://127.0.0.1:8000",
+      "router": { "origin": false }
+    }
+  }
+}

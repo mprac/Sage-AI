@@ -13,6 +13,8 @@ import {
   Camera,
   Check,
   ChefHat,
+  ChevronDown,
+  Clock,
   Coins,
   Cookie,
   Crown,
@@ -37,6 +39,7 @@ import {
   Sun,
   Trophy,
   User,
+  Users,
   UtensilsCrossed,
   X,
 } from 'lucide-react-native';
@@ -75,6 +78,9 @@ const ICONS = {
   sun: Sun,
   cookie: Cookie,
   gem: Gem,
+  clock: Clock,
+  users: Users,
+  'chevron-down': ChevronDown,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

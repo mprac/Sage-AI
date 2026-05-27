@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, StyleSheet, View, type ViewProps } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View, type ViewProps } from 'react-native';
 import { type Edge, SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTheme } from '../../theme';
@@ -13,10 +13,26 @@ interface ScreenProps extends ViewProps {
    * Headerless screens (e.g. sign-in) pass `['top','bottom']`.
    */
   edges?: Edge[];
+  /**
+   * Pull-to-refresh (only with `scroll`). Pass a query's refetch + its in-flight flag, e.g.
+   * `onRefresh={refetch} refreshing={isRefetching}`. Enabling it also allows the bounce so the
+   * gesture feels natural.
+   */
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
-/** Page wrapper: themed background, optional scroll + padding + safe-area edges. */
-export function Screen({ scroll, padded = true, edges = [], style, children, ...rest }: ScreenProps) {
+/** Page wrapper: themed background, optional scroll + padding + safe-area edges + pull-to-refresh. */
+export function Screen({
+  scroll,
+  padded = true,
+  edges = [],
+  onRefresh,
+  refreshing = false,
+  style,
+  children,
+  ...rest
+}: ScreenProps) {
   const theme = useTheme();
   const inner = (
     <View
@@ -34,8 +50,20 @@ export function Screen({ scroll, padded = true, edges = [], style, children, ...
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           contentInsetAdjustmentBehavior="never"
-          bounces={false}
-          overScrollMode="never"
+          // Allow the bounce when pull-to-refresh is on, so the gesture has room to trigger.
+          bounces={!!onRefresh}
+          overScrollMode={onRefresh ? 'always' : 'never'}
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={theme.colors.primary}
+                colors={[theme.colors.primary]}
+                progressBackgroundColor={theme.colors.card}
+              />
+            ) : undefined
+          }
         >
           {inner}
         </ScrollView>

@@ -13,13 +13,32 @@ from app.core.config import settings
 from app.core.security import CurrentUser
 from app.db.models import ChatMessage, ChatSession, Recognition
 from app.db.session import DbSession, SessionLocal
-from app.schemas.chat import ChatDelta, ChatDone, ChatError, ChatRequest, ChatSummary, ChatTurn
+from app.schemas.chat import ChatDelta, ChatDone, ChatError, ChatOffer, ChatRequest, ChatSummary, ChatTurn
 from app.schemas.recognition import DetectedFood
 from app.services import credits, memory, sage_pet
 from app.services.anthropic_client import Usage
 from app.services.chat import stream_chat
 
 router = APIRouter(tags=["chat"])
+
+# The chef appends this sentinel on its own final line ONLY when it is explicitly inviting the user
+# to generate the full structured recipe (see CHAT_SYSTEM). We strip it from the visible stream and
+# turn it into a single `ChatOffer` event, so the client can arm its 'yes → recipe' shortcut
+# deterministically — never guessing from the reply text.
+OFFER_SENTINEL = "[[OFFER_RECIPE]]"
+
+
+def _safe_emit_end(acc: str) -> int:
+    """How many leading chars of ``acc`` are safe to stream now without ever leaking a partial
+    sentinel. We hold back the longest trailing run that is a *prefix* of the sentinel (it might
+    still be completing); a fully-formed sentinel anywhere in the emitted slice is stripped
+    separately. This is robust even when the model adds a trailing newline after the marker."""
+    hold = 0
+    for k in range(min(len(OFFER_SENTINEL) - 1, len(acc)), 0, -1):
+        if acc.endswith(OFFER_SENTINEL[:k]):
+            hold = k
+            break
+    return len(acc) - hold
 
 
 def _sse(model) -> str:
@@ -78,7 +97,9 @@ async def chat(req: ChatRequest, user: CurrentUser, db: DbSession):
 
     async def gen() -> AsyncIterator[str]:
         usage_sink: list[Usage] = []
-        full: list[str] = []
+        acc = ""  # raw text received so far
+        sent = 0  # chars already emitted to the client
+        offer = False
         try:
             async for delta in stream_chat(
                 profile=profile,
@@ -89,13 +110,31 @@ async def chat(req: ChatRequest, user: CurrentUser, db: DbSession):
                 usage_sink=usage_sink,
                 sage=sage_state,
             ):
-                full.append(delta)
-                yield _sse(ChatDelta(text=delta))
+                acc += delta
+                # Stream everything that can't be (part of) the trailing sentinel; strip any fully
+                # formed sentinel from what we emit.
+                safe_end = _safe_emit_end(acc)
+                if safe_end > sent:
+                    chunk = acc[sent:safe_end]
+                    sent = safe_end
+                    if OFFER_SENTINEL in chunk:
+                        offer = True
+                        chunk = chunk.replace(OFFER_SENTINEL, "")
+                    if chunk:
+                        yield _sse(ChatDelta(text=chunk))
         except Exception as exc:  # surface a clean error event to the client
             yield _sse(ChatError(message="The chef hit a snag. Please try again.", code=type(exc).__name__))
             return
 
-        reply = "".join(full)
+        # Flush the guarded tail, stripping the sentinel if it landed there.
+        tail = acc[sent:]
+        if OFFER_SENTINEL in tail:
+            offer = True
+            tail = tail.replace(OFFER_SENTINEL, "")
+        if tail:
+            yield _sse(ChatDelta(text=tail))
+
+        reply = acc.replace(OFFER_SENTINEL, "").rstrip()
         usage = usage_sink[0] if usage_sink else Usage(0, 0)
 
         # Persist the assistant turn + meter the spend in a fresh session (the request-scoped
@@ -113,6 +152,8 @@ async def chat(req: ChatRequest, user: CurrentUser, db: DbSession):
             )
             await s.commit()
 
+        if offer:
+            yield _sse(ChatOffer())
         yield _sse(ChatDone(session_id=session_id, credits_spent=spent, balance=balance))
 
         # Learn durable preferences from this exchange (best-effort, not billed to the user).

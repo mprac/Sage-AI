@@ -1,13 +1,11 @@
 /** Profile — shows the personal-chef taste profile the AI has learned + sign out. */
-import { useQuery } from '@tanstack/react-query';
 import React from 'react';
 import { View } from 'react-native';
 
 import { Button, Card, Screen, Text } from '../../src/components/ui';
-import { api } from '../../src/lib/api';
+import { useProfile } from '../../src/features/profile/useProfile';
 import { supabase } from '../../src/lib/supabase';
 import { useTheme } from '../../src/theme';
-import type { TasteProfile } from '../../src/types/api';
 
 function Chips({ label, items }: { label: string; items: string[] }) {
   const theme = useTheme();
@@ -36,10 +34,7 @@ function Chips({ label, items }: { label: string; items: string[] }) {
 
 export default function Profile() {
   const theme = useTheme();
-  const { data, isLoading } = useQuery({
-    queryKey: ['profile'],
-    queryFn: () => api.get<TasteProfile>('/profile'),
-  });
+  const { data, isLoading } = useProfile();
 
   return (
     <Screen scroll>

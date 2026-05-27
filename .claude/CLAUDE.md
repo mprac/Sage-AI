@@ -70,6 +70,8 @@ Tamagotchi-style chef companion you feed by cooking. Metered by a credit wallet.
 ### 9. This workspace blocks Bash
 - `.claude/settings.json` denies `Bash`. Build/scaffold by **writing files directly**; put
   install/run commands in docs for the user to execute.
+- **After adding NEW files**, Metro's cached module map won't see them (a hot reload throws
+  `Unable to resolve "…"` for correct paths). Restart with **`npx expo start --tunnel -c`** to rescan.
 
 ---
 
@@ -83,6 +85,10 @@ Tamagotchi-style chef companion you feed by cooking. Metered by a credit wallet.
 - **Mobile:** Expo Router file routes in `app/`; shared themed primitives in
   `src/components/ui/`; TanStack Query for server state, Zustand for client state; SSE chat via
   `expo/fetch` streaming in `src/features/chat/useChatStream.ts`.
+- **Sage home layout variants:** the Sage tab (`mobile/app/(tabs)/index.tsx`) is a thin data
+  container that renders swappable presentational variants from `mobile/src/features/sage/variants/`
+  (registry in `variants/index.ts`). The on-screen variant-switcher pill is **dev-only
+  (`__DEV__`-gated)** — used to A/B layouts on-device.
 - **Theming:** `mobile/src/theme/tokens.ts` is the single source of branding — **no raw hex or
   magic numbers** in components; everything reads `useTheme()`. Changing `palette.brand500` rebrands
   the app.
@@ -110,3 +116,5 @@ Tamagotchi-style chef companion you feed by cooking. Metered by a credit wallet.
 - [ ] New backend table has **RLS enabled** + owner policy in `schema.sql`.
 - [ ] AI endpoints are **metered** (credits charged) and **owner-checked**.
 - [ ] Added native/Expo deps via `npx expo install`, not bare `npm install`.
+- [ ] **Before publishing:** settle on the final Sage layout variant (`SAGE_VARIANTS[0]`); the
+      variant switcher is `__DEV__`-only and auto-strips from release builds — confirm it's gone.

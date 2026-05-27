@@ -1,6 +1,6 @@
 /** Chats tab — your past conversations with Sage. Tap to resume. */
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 
 import { Card, EmptyState, FadeInUp, Icon, Screen, Text } from '../../src/components/ui';
@@ -19,7 +19,19 @@ function relativeDate(iso: string): string {
 export default function Chats() {
   const theme = useTheme();
   const router = useRouter();
-  const { data: chats, isLoading } = useChats();
+  const { data: chats, isLoading, refetch } = useChats();
+  // Track pull-to-refresh separately from React Query's `isRefetching`, so the spinner shows ONLY
+  // on a deliberate pull — never on a silent background refetch (e.g. after a chat invalidates
+  // this list). Keeps navigation-driven updates invisible.
+  const [pulling, setPulling] = useState(false);
+  const onPull = useCallback(async () => {
+    setPulling(true);
+    try {
+      await refetch();
+    } finally {
+      setPulling(false);
+    }
+  }, [refetch]);
 
   if (isLoading) {
     return (
@@ -46,8 +58,27 @@ export default function Chats() {
   }
 
   return (
-    <Screen scroll>
-      <Text variant="heading">Your chats</Text>
+    <Screen scroll onRefresh={onPull} refreshing={pulling}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text variant="heading">Your chats</Text>
+        {/* New chats are unlocked only after the first photo-started chat exists (this tab is
+            empty until then), so users learn the snap → cook loop first. */}
+        <Pressable
+          onPress={() => router.push('/chat/new?fresh=1')}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: theme.spacing.xs,
+            backgroundColor: theme.colors.primarySoft,
+            paddingVertical: theme.spacing.xs + 2,
+            paddingHorizontal: theme.spacing.sm + 4,
+            borderRadius: theme.radius.pill,
+          }}
+        >
+          <Icon name="plus" tone="primary" size="sm" />
+          <Text variant="label" tone="primary">New chat</Text>
+        </Pressable>
+      </View>
       <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
         {chats.map((c, i) => (
           <FadeInUp key={c.id} index={i}>

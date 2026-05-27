@@ -7,13 +7,29 @@ import RNMarkdown from 'react-native-markdown-display';
 
 import { useTheme } from '../../theme';
 
-export function Markdown({ children, color }: { children: string; color?: string }) {
+export function Markdown({
+  children,
+  color,
+  spacious,
+}: {
+  children: string;
+  color?: string;
+  /** Looser line-height + paragraph gaps for comfortable reading inside chat bubbles. */
+  spacious?: boolean;
+}) {
   const theme = useTheme();
   const textColor = color ?? theme.colors.text;
 
   const styles = useMemo(
     () => ({
-      body: { color: textColor, ...theme.typography.body },
+      body: {
+        color: textColor,
+        ...theme.typography.body,
+        ...(spacious ? { lineHeight: 26 } : null),
+      },
+      paragraph: spacious
+        ? { marginTop: 0, marginBottom: theme.spacing.sm }
+        : undefined,
       heading1: { color: textColor, ...theme.typography.heading, marginTop: theme.spacing.sm },
       heading2: { color: textColor, ...theme.typography.title, marginTop: theme.spacing.sm },
       heading3: { color: textColor, ...theme.typography.title },
@@ -21,7 +37,7 @@ export function Markdown({ children, color }: { children: string; color?: string
       em: { fontFamily: theme.fonts.body, fontStyle: 'italic' as const },
       bullet_list: { marginVertical: theme.spacing.xs },
       ordered_list: { marginVertical: theme.spacing.xs },
-      list_item: { color: textColor, marginVertical: 2 },
+      list_item: { color: textColor, marginVertical: spacious ? 4 : 2 },
       code_inline: {
         color: theme.colors.primary,
         backgroundColor: theme.colors.surface,
@@ -38,7 +54,7 @@ export function Markdown({ children, color }: { children: string; color?: string
       link: { color: theme.colors.primary },
       hr: { backgroundColor: theme.colors.border },
     }),
-    [theme, textColor],
+    [theme, textColor, spacious],
   );
 
   return <RNMarkdown style={styles}>{children}</RNMarkdown>;

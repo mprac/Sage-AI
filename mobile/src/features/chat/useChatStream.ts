@@ -7,6 +7,7 @@
  * character-by-character at a gentle, near-constant pace (with mild catch-up so long replies
  * never lag). This gives a dreamy typewriter feel regardless of how Claude chunks the stream.
  */
+import { useQueryClient } from '@tanstack/react-query';
 import { fetch as expoFetch } from 'expo/fetch';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -36,8 +37,12 @@ export function useChatStream(initial: ChatMessage[] = [], initialSessionId: str
   const [messages, setMessages] = useState<ChatMessage[]>(initial);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // True once the chef has explicitly offered the full recipe (server `offer` event). Armed for the
+  // 'yes → Get full recipe' shortcut; reset the moment a new message is sent.
+  const [offerRecipe, setOfferRecipe] = useState(false);
   const sessionIdRef = useRef<string | null>(initialSessionId);
   const setBalance = useWallet((s) => s.setBalance);
+  const qc = useQueryClient();
 
   // Smooth-reveal state (refs so the loop reads the latest without re-binding).
   const targetRef = useRef(''); // full text received so far for the active reply
@@ -87,6 +92,7 @@ export function useChatStream(initial: ChatMessage[] = [], initialSessionId: str
     async ({ message, sessionId, recognitionId }: SendArgs) => {
       setError(null);
       setStreaming(true);
+      setOfferRecipe(false); // a new turn supersedes any prior recipe offer
       sessionIdRef.current = sessionId;
 
       // Reset reveal state for this reply.
@@ -135,6 +141,7 @@ export function useChatStream(initial: ChatMessage[] = [], initialSessionId: str
 
             // Append to the buffer — the reveal loop drips it out smoothly.
             if (payload.type === 'delta') targetRef.current += payload.text;
+            else if (payload.type === 'offer') setOfferRecipe(true);
             else if (payload.type === 'done') {
               sessionIdRef.current = payload.session_id;
               setBalance(payload.balance);
@@ -148,10 +155,18 @@ export function useChatStream(initial: ChatMessage[] = [], initialSessionId: str
       } finally {
         // Tell the reveal loop the network is done; it stops once it finishes unveiling.
         networkDoneRef.current = true;
+
+        // Silently refresh what this turn changed server-side: the chat list (a cook-started
+        // session is created on the backend) and the taste profile (the chef learns preferences
+        // after each reply). These run as *background* refetches — cached data stays on screen,
+        // so it's invisible while the user navigates. The stream only closes here AFTER the
+        // backend commits its post-reply learning, so the refetched profile is already current.
+        qc.invalidateQueries({ queryKey: ['chats'] });
+        qc.invalidateQueries({ queryKey: ['profile'] });
       }
     },
-    [setBalance, startRevealLoop],
+    [qc, setBalance, startRevealLoop],
   );
 
-  return { messages, streaming, error, send, sessionId: sessionIdRef };
+  return { messages, streaming, error, send, sessionId: sessionIdRef, offerRecipe };
 }

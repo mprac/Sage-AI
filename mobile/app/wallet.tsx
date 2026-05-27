@@ -15,7 +15,7 @@ export default function Wallet() {
   const setBalance = useWallet((s) => s.setBalance);
   const { packages, buy, busy } = usePurchases();
 
-  const { data, refetch } = useQuery({
+  const { data, refetch, isRefetching } = useQuery({
     queryKey: ['wallet'],
     queryFn: async () => {
       const w = await api.get<WalletSummary>('/wallet');
@@ -25,7 +25,7 @@ export default function Wallet() {
   });
 
   return (
-    <Screen scroll>
+    <Screen scroll onRefresh={refetch} refreshing={isRefetching}>
       <Gradient
         name="brand"
         style={{

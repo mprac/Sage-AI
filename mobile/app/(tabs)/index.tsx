@@ -1,68 +1,28 @@
-/** Sage home — a single fixed screen (no scroll), solid background, no gradient. Avatar + stats +
- *  actions distributed to fit. Theme-driven + haptics. */
+/** Sage home — data container. Fetches Sage + handles all mutations, then renders the selected
+ *  layout *variant* (see src/features/sage/variants/). A dev-only pill cycles variants on-device
+ *  so designs can be compared live without losing the current one. */
 import { useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, View } from 'react-native';
 
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  Icon,
-  type IconName,
-  Screen,
-  Text,
-} from '../../src/components/ui';
-import { SageAvatar } from '../../src/features/sage/SageAvatar';
+import { EmptyState, Icon, type IconName, Screen, Text } from '../../src/components/ui';
 import { scheduleHungerReminder } from '../../src/features/sage/notifications';
-import { useCosmetics, useSage } from '../../src/features/sage/useSage';
+import { TREAT_COST, useCosmetics, useSage } from '../../src/features/sage/useSage';
+import { SAGE_VARIANTS } from '../../src/features/sage/variants';
+import { moodColor } from '../../src/features/sage/variants/shared';
 import { ApiError } from '../../src/lib/api';
 import { haptic } from '../../src/lib/haptics';
 import { useTheme } from '../../src/theme';
-import type { Cosmetic, SageState } from '../../src/types/api';
-
-function moodColor(state: SageState, theme: ReturnType<typeof useTheme>) {
-  if (state === 'thriving' || state === 'content') return theme.colors.success;
-  if (state === 'peckish') return theme.colors.warning;
-  return theme.colors.danger;
-}
-
-function Bar({ value, color, track }: { value: number; color: string; track: string }) {
-  return (
-    <View style={{ height: 10, borderRadius: 999, backgroundColor: track, overflow: 'hidden' }}>
-      <View style={{ width: `${Math.max(0, Math.min(100, value))}%`, height: '100%', backgroundColor: color }} />
-    </View>
-  );
-}
-
-function Stat({ icon, value, label }: { icon: IconName; value: number; label: string }) {
-  const theme = useTheme();
-  return (
-    <View style={{ flex: 1, alignItems: 'center', gap: 5 }}>
-      <View
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 20,
-          backgroundColor: theme.colors.primarySoft,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Icon name={icon} tone="primary" size="sm" />
-      </View>
-      <Text variant="title">{value}</Text>
-      <Text variant="caption" tone="muted">{label}</Text>
-    </View>
-  );
-}
+import type { Cosmetic } from '../../src/types/api';
 
 export default function SageHome() {
   const theme = useTheme();
   const router = useRouter();
   const { data: sage, isLoading, isError, refetch, treat, rename } = useSage();
   const { data: cosmetics } = useCosmetics();
+
+  // Which layout variant is showing (dev-only switcher cycles this).
+  const [variantIdx, setVariantIdx] = useState(0);
 
   useEffect(() => {
     if (sage) scheduleHungerReminder(sage);
@@ -105,80 +65,80 @@ export default function SageHome() {
   }
 
   function giveTreat() {
-    haptic.medium();
-    treat.mutate(undefined, {
-      onSuccess: () => haptic.success(),
-      onError: (e) => {
-        if (e instanceof ApiError && e.status === 402) {
-          Alert.alert('Out of credits', `Get more credits to treat ${sage!.name}.`, [
-            { text: 'Not now' },
-            { text: 'Get credits', onPress: () => router.push('/wallet') },
-          ]);
-        }
-      },
-    });
+    haptic.light();
+    // Confirm the spend before charging — treats cost credits, so never deduct silently.
+    Alert.alert(
+      `Treat ${sage!.name}?`,
+      `This costs ${TREAT_COST} credits and gives ${sage!.name} a little vitality boost.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: `Spend ${TREAT_COST}`,
+          onPress: () => {
+            haptic.medium();
+            treat.mutate(undefined, {
+              onSuccess: () => haptic.success(),
+              onError: (e) => {
+                if (e instanceof ApiError && e.status === 402) {
+                  Alert.alert('Out of credits', `Get more credits to treat ${sage!.name}.`, [
+                    { text: 'Not now' },
+                    { text: 'Get credits', onPress: () => router.push('/wallet') },
+                  ]);
+                }
+              },
+            });
+          },
+        },
+      ],
+    );
   }
 
+  const variant = SAGE_VARIANTS[variantIdx];
+  const Variant = variant.Component;
+
   return (
-    <Screen>
-      <View style={{ flex: 1, justifyContent: 'space-between' }}>
-        {/* Hero (no gradient, solid background) */}
-        <View style={{ alignItems: 'center', gap: theme.spacing.sm, paddingTop: theme.spacing.sm }}>
-          <SageAvatar
-            vitality={sage.vitality}
-            moodColor={mood}
-            themeColor={themeColor}
-            accessoryIcon={accessoryIcon}
-            dormant={sage.is_dormant}
-          />
-          <Pressable
-            onPress={promptRename}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs, marginTop: theme.spacing.xs }}
-          >
-            <Text variant="display">{sage.name}</Text>
-            <Icon name="pencil" tone="muted" size="sm" />
-          </Pressable>
-          <Badge label={sage.mood} fg={mood} bg={theme.colors.surface} />
-          <Text tone="text" style={{ textAlign: 'center', maxWidth: 320, fontSize: 24, lineHeight: 32 }}>
-            {sage.message}
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <Variant
+        sage={sage}
+        moodColor={mood}
+        xpPct={xpPct}
+        accessoryIcon={accessoryIcon}
+        themeColor={themeColor}
+        treatPending={treat.isPending}
+        onCookNow={() => router.navigate('/cook')}
+        onTreat={giveTreat}
+        onRename={promptRename}
+        onShop={() => router.push('/shop')}
+      />
+
+      {/* Dev-only layout switcher — tap to cycle variants live. Stripped from production builds. */}
+      {__DEV__ ? (
+        <Pressable
+          onPress={() => {
+            haptic.light();
+            setVariantIdx((i) => (i + 1) % SAGE_VARIANTS.length);
+          }}
+          style={{
+            position: 'absolute',
+            top: theme.spacing.sm,
+            right: theme.spacing.sm,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: theme.spacing.xs,
+            backgroundColor: theme.colors.text,
+            opacity: 0.82,
+            paddingVertical: 6,
+            paddingHorizontal: theme.spacing.sm + 2,
+            borderRadius: theme.radius.pill,
+            ...theme.shadow.card,
+          }}
+        >
+          <Icon name="sparkles" color={theme.colors.background} size="sm" />
+          <Text variant="caption" style={{ color: theme.colors.background }}>
+            {variant.label}
           </Text>
-        </View>
-
-        {/* Stats */}
-        <Card variant="elevated" style={{ gap: theme.spacing.md }}>
-          <View style={{ gap: theme.spacing.xs }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text variant="caption" tone="muted">Vitality</Text>
-              <Text variant="caption" tone="muted">{sage.vitality}/100</Text>
-            </View>
-            <Bar value={sage.vitality} color={mood} track={theme.colors.surface} />
-          </View>
-          <View style={{ gap: theme.spacing.xs }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text variant="caption" tone="muted">Level {sage.level}</Text>
-              <Text variant="caption" tone="muted">{sage.xp}/{sage.xp_to_next} XP</Text>
-            </View>
-            <Bar value={xpPct} color={theme.colors.primary} track={theme.colors.surface} />
-          </View>
-          <View style={{ height: 1, backgroundColor: theme.colors.divider }} />
-          <View style={{ flexDirection: 'row' }}>
-            <Stat icon="flame" value={sage.streak_days} label="day streak" />
-            <Stat icon="heart" value={sage.bond_level} label="bond" />
-            <Stat icon="trophy" value={sage.longest_streak} label="best" />
-          </View>
-        </Card>
-
-        {/* Actions */}
-        <View style={{ gap: theme.spacing.sm }}>
-          <Button
-            title={sage.is_dormant ? `Cook to revive ${sage.name}` : `Cook now — feed ${sage.name}`}
-            icon="camera"
-            onPress={() => router.navigate('/cook')}
-          />
-          <Button title="Give a treat (40 credits)" variant="secondary" icon="gem" loading={treat.isPending} onPress={giveTreat} />
-          <Button title={`${sage.name}'s closet`} variant="ghost" icon="shopping-bag" onPress={() => router.push('/shop')} />
-        </View>
-      </View>
-    </Screen>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }

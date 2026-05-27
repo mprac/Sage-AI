@@ -5,6 +5,9 @@ import { api } from '../../lib/api';
 import { useWallet } from '../../store/wallet';
 import type { Cosmetic, FeedResult, SagePet } from '../../types/api';
 
+/** Credit cost of a treat — mirrors the backend's `TREAT_COST_CREDITS` (api/app/services/sage_pet.py). */
+export const TREAT_COST = 40;
+
 export function useSage() {
   const qc = useQueryClient();
   const setBalance = useWallet((s) => s.setBalance);

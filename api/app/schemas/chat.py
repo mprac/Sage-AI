@@ -46,6 +46,15 @@ class ChatDone(BaseModel):
     balance: int
 
 
+class ChatOffer(BaseModel):
+    """Emitted once when the chef has explicitly offered to generate the full structured recipe.
+    The client arms its 'yes → Get full recipe' shortcut only while this offer is active, so the
+    recipe flow can never trigger off an unrelated yes/no question."""
+
+    type: Literal["offer"] = "offer"
+    kind: Literal["recipe"] = "recipe"
+
+
 class ChatError(BaseModel):
     type: Literal["error"] = "error"
     message: str

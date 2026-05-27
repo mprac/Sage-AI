@@ -2,6 +2,7 @@
 import { Redirect, Tabs, useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import { Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CreditPill, Icon, type IconName } from '../../src/components/ui';
 import { configurePurchases } from '../../src/features/billing/usePurchases';
@@ -21,6 +22,7 @@ const tabIcon =
 export default function TabsLayout() {
   const theme = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const session = useAuth((s) => s.session);
   const balance = useWallet((s) => s.balance);
   const setBalance = useWallet((s) => s.setBalance);
@@ -51,9 +53,11 @@ export default function TabsLayout() {
           backgroundColor: theme.colors.card,
           borderTopColor: theme.colors.divider,
           borderTopWidth: 1,
-          height: 64,
+          // Lift the items off the screen edge: respect the home-indicator inset, plus a little
+          // breathing room (min 14 on devices without an inset).
+          height: 64 + insets.bottom,
           paddingTop: 6,
-          paddingBottom: 10,
+          paddingBottom: Math.max(insets.bottom, 14),
         },
         headerStyle: { backgroundColor: theme.colors.background },
         headerShadowVisible: false,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { forwardRef, useState } from 'react';
 import { TextInput, type TextInputProps, View } from 'react-native';
 
 import { useTheme } from '../../theme';
@@ -8,8 +8,12 @@ export interface InputProps extends TextInputProps {
   label?: string;
 }
 
-/** Themed text input — filled surface, rounded, with a focus ring in the brand color. */
-export function Input({ label, style, onFocus, onBlur, ...rest }: InputProps) {
+/** Themed text input — filled surface, rounded, with a focus ring in the brand color.
+ *  Forwards its ref to the underlying TextInput so callers can `.focus()` it programmatically. */
+export const Input = forwardRef<TextInput, InputProps>(function Input(
+  { label, style, onFocus, onBlur, ...rest },
+  ref,
+) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
 
@@ -21,6 +25,7 @@ export function Input({ label, style, onFocus, onBlur, ...rest }: InputProps) {
         </Text>
       ) : null}
       <TextInput
+        ref={ref}
         placeholderTextColor={theme.colors.subtle}
         onFocus={(e) => {
           setFocused(true);
@@ -47,4 +52,4 @@ export function Input({ label, style, onFocus, onBlur, ...rest }: InputProps) {
       />
     </View>
   );
-}
+});

@@ -34,6 +34,14 @@ _TOOL = {
                             "type": "string",
                             "description": "Rough amount if estimable, else omit",
                         },
+                        "seasonal_note": {
+                            "type": "string",
+                            "description": (
+                                "Optional one-line chef-y note about this ingredient's "
+                                "seasonal peak (e.g. 'At peak in fall — sweeter after first "
+                                "frost'). Omit if not applicable."
+                            ),
+                        },
                     },
                     "required": ["name", "category", "confidence"],
                 },

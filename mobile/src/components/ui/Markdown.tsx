@@ -1,11 +1,50 @@
 /**
  * Themed markdown renderer for AI replies (so `**bold**`, lists, and headings render properly
  * instead of showing raw markdown). Wraps react-native-markdown-display with theme-driven styles.
+ *
+ * Stream-safe: any trailing UNCLOSED inline markers ("**", "`", "```") are stripped before the
+ * parser sees them, so users never glimpse raw `**` while the model is mid-emit of a bold span.
+ * The trim is idempotent on complete text (an even count of markers means nothing is stripped),
+ * so callers don't need to opt in or know whether content is streaming.
  */
 import React, { useMemo } from 'react';
 import RNMarkdown from 'react-native-markdown-display';
 
 import { useTheme } from '../../theme';
+
+/** Strip trailing unclosed inline markdown markers so streaming reveals never show raw `**`/`` ` ``.
+ *
+ *  Algorithm: for each marker token (``` first to peel block fences before falling into inline),
+ *  count occurrences in the current text. Odd count → the rightmost one is unmatched → truncate
+ *  the string at that position. Repeat for the next token against the truncated result.
+ *
+ *  Italic `*` / `_` are intentionally NOT handled: single asterisks/underscores appear naturally
+ *  in prose (e.g. file names like `my_file.txt`), so stripping them produces more visible jitter
+ *  than the rare flash of a half-rendered italic. Bold + inline-code cover ~95% of the issue. */
+export function trimIncompleteMarkdown(text: string): string {
+  let result = text;
+
+  // Fenced code block (```) — handle first so its inner backticks don't leak into the
+  // inline-code count below.
+  const fenceCount = (result.match(/```/g) ?? []).length;
+  if (fenceCount % 2 === 1) {
+    result = result.slice(0, result.lastIndexOf('```'));
+  }
+
+  // Bold (**)
+  const boldCount = (result.match(/\*\*/g) ?? []).length;
+  if (boldCount % 2 === 1) {
+    result = result.slice(0, result.lastIndexOf('**'));
+  }
+
+  // Inline code (`) — any remaining single backticks
+  const codeCount = (result.match(/`/g) ?? []).length;
+  if (codeCount % 2 === 1) {
+    result = result.slice(0, result.lastIndexOf('`'));
+  }
+
+  return result;
+}
 
 export function Markdown({
   children,
@@ -57,5 +96,5 @@ export function Markdown({
     [theme, textColor, spacious],
   );
 
-  return <RNMarkdown style={styles}>{children}</RNMarkdown>;
+  return <RNMarkdown style={styles}>{trimIncompleteMarkdown(children)}</RNMarkdown>;
 }

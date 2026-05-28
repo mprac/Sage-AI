@@ -6,7 +6,7 @@ import type { ViewStyle } from 'react-native';
 import { useTheme } from '../../theme';
 
 interface GradientProps {
-  name?: 'brand' | 'hero' | 'accent' | 'glow' | 'bubble';
+  name?: 'brand' | 'hero' | 'heroWarm' | 'accent' | 'appetite' | 'glow' | 'bubble';
   /** Custom stops override `name`. */
   colors?: [string, string, ...string[]];
   start?: { x: number; y: number };

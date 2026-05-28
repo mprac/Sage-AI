@@ -10,8 +10,9 @@ import { ActivityIndicator, Animated, Pressable, View } from 'react-native';
 import { Badge, Card, Gradient, Icon, type IconName, Screen, Text } from '../../../components/ui';
 import { haptic } from '../../../lib/haptics';
 import { useTheme } from '../../../theme';
+import { HarvestMeter } from '../HarvestMeter';
 import { SageAvatar } from '../SageAvatar';
-import { Bar, type SageVariantProps } from './shared';
+import { Bar, iconTint, moodGradient, type SageVariantProps } from './shared';
 
 /** A circular tappable icon button — the secondary actions in the dock (treat / closet). */
 function Orb({
@@ -61,11 +62,11 @@ function Orb({
 }
 
 /** One segment of the stat strip — a horizontal icon + value + label, divided by hairlines. */
-function Seg({ icon, value, label }: { icon: IconName; value: number; label: string }) {
+function Seg({ icon, value, label, color }: { icon: IconName; value: number; label: string; color?: string }) {
   const theme = useTheme();
   return (
     <View style={{ flex: 1, alignItems: 'center', gap: 3 }}>
-      <Icon name={icon} tone="primary" size="sm" />
+      <Icon name={icon} color={color ?? iconTint(icon, theme) ?? theme.colors.primary} size="sm" />
       <Text variant="heading">{value}</Text>
       <Text variant="overline" tone="muted">{label}</Text>
     </View>
@@ -73,11 +74,12 @@ function Seg({ icon, value, label }: { icon: IconName; value: number; label: str
 }
 
 /** A labeled progress track (vitality / XP) with a right-aligned readout. */
-function Track({ label, readout, value, color, theme }: {
+function Track({ label, readout, value, color, colors, theme }: {
   label: string;
   readout: string;
   value: number;
-  color: string;
+  color?: string;
+  colors?: readonly string[];
   theme: ReturnType<typeof useTheme>;
 }) {
   return (
@@ -86,7 +88,7 @@ function Track({ label, readout, value, color, theme }: {
         <Text variant="overline" tone="muted">{label}</Text>
         <Text variant="caption" tone="muted">{readout}</Text>
       </View>
-      <Bar value={value} color={color} track={theme.colors.surface} />
+      <Bar value={value} color={color} colors={colors} track={theme.colors.surface} />
     </View>
   );
 }
@@ -98,34 +100,63 @@ export function SageHomeHabitat({
   accessoryIcon,
   themeColor,
   treatPending,
+  nextReward,
+  season,
   onCookNow,
   onTreat,
   onRename,
   onShop,
+  onOpenAlmanac,
 }: SageVariantProps) {
   const theme = useTheme();
   const cookScale = useRef(new Animated.Value(1)).current;
   const animateCook = (to: number) =>
     Animated.spring(cookScale, { toValue: to, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
 
+  const seasonPalette = season ? theme.seasonPalette[season.season] : null;
+
   return (
-    <Screen edges={['top']}>
+    <Screen edges={['top']} tabBarSpacing>
       <View style={{ flex: 1 }}>
-        {/* ── HUD: level pill (left) + mood (right) ───────────────────────────── */}
+        {/* ── HUD: level pill + season chip (left) + mood (right) ─────────────── */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 5,
-              backgroundColor: theme.colors.primarySoft,
-              paddingVertical: 5,
-              paddingHorizontal: theme.spacing.sm + 2,
-              borderRadius: theme.radius.pill,
-            }}
-          >
-            <Icon name="crown" tone="primary" size="sm" />
-            <Text variant="overline" tone="primary">LEVEL {sage.level}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs + 2 }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+                backgroundColor: theme.colors.primarySoft,
+                paddingVertical: 5,
+                paddingHorizontal: theme.spacing.sm + 2,
+                borderRadius: theme.radius.pill,
+              }}
+            >
+              <Icon name="crown" tone="primary" size="sm" />
+              <Text variant="overline" tone="primary">LEVEL {sage.level}</Text>
+            </View>
+            {season && seasonPalette ? (
+              <Pressable
+                onPress={() => {
+                  haptic.light();
+                  onOpenAlmanac();
+                }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 5,
+                  backgroundColor: seasonPalette.wash[0],
+                  paddingVertical: 5,
+                  paddingHorizontal: theme.spacing.sm + 2,
+                  borderRadius: theme.radius.pill,
+                }}
+              >
+                <Icon name={seasonPalette.icon as IconName} color={seasonPalette.ring[0]} size="sm" />
+                <Text variant="overline" style={{ color: seasonPalette.ring[0] }}>
+                  {seasonPalette.label.toUpperCase()}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
           <Badge label={sage.mood} fg={moodColor} bg={theme.colors.card} />
         </View>
@@ -166,14 +197,14 @@ export function SageHomeHabitat({
                 label="Vitality"
                 readout={`${sage.vitality}/100`}
                 value={sage.vitality}
-                color={moodColor}
+                colors={moodGradient(sage.state, theme)}
                 theme={theme}
               />
               <Track
                 label="Next level"
                 readout={`${sage.xp}/${sage.xp_to_next} XP`}
                 value={xpPct}
-                color={theme.colors.primary}
+                colors={[theme.colors.primary, theme.colors.accent, theme.colors.energy]}
                 theme={theme}
               />
             </View>
@@ -196,10 +227,94 @@ export function SageHomeHabitat({
           <Seg icon="heart" value={sage.bond_level} label="bond" />
           <View style={{ width: 1, height: 40, backgroundColor: theme.colors.divider }} />
           <Seg icon="trophy" value={sage.longest_streak} label="best" />
+          {season ? (
+            <>
+              <View style={{ width: 1, height: 40, backgroundColor: theme.colors.divider }} />
+              <Pressable
+                onPress={() => {
+                  haptic.light();
+                  onOpenAlmanac();
+                }}
+                style={{ flex: 1, alignItems: 'center', gap: 3 }}
+              >
+                <HarvestMeter
+                  cooked={season.harvest.cooked.length}
+                  total={season.harvest.total}
+                  season={season.season}
+                  size={28}
+                  strokeWidth={3}
+                />
+                <Text variant="heading">
+                  {season.harvest.cooked.length}/{season.harvest.total}
+                </Text>
+                <Text variant="overline" tone="muted">harvest</Text>
+              </Pressable>
+            </>
+          ) : null}
         </Card>
 
-        {/* Flexible negative space keeps the dock anchored to the bottom on any screen. */}
-        <View style={{ flex: 1 }} />
+        {/* ── Goal: the reward you're cooking toward — turns the gap into the heart of the loop.
+            Centered in the flexible space so the dock stays anchored to the bottom on any screen. */}
+        <View style={{ flex: 1, justifyContent: 'flex-start', marginTop: theme.spacing.md }}>
+          {nextReward ? (
+            <Pressable onPress={onShop}>
+              <Card variant="elevated" style={{ gap: theme.spacing.sm + 2, padding: theme.spacing.md }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+                  <View
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 14,
+                      backgroundColor: theme.colors.accentSoft,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Icon name="crown" color={theme.colors.accent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="overline" tone="muted">COOKING TOWARD</Text>
+                    <Text variant="title" numberOfLines={1}>{nextReward.name}</Text>
+                  </View>
+                  <Badge label={`LV ${nextReward.unlockLevel}`} />
+                </View>
+                <Bar
+                  value={xpPct}
+                  colors={[theme.colors.primary, theme.colors.accent, theme.colors.energy]}
+                  track={theme.colors.surface}
+                />
+              </Card>
+            </Pressable>
+          ) : (
+            <Pressable onPress={onCookNow}>
+              <Card variant="elevated" style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, padding: theme.spacing.md }}>
+                <View
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 22,
+                    backgroundColor: theme.colors.energySoft,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Icon name="flame" color={theme.colors.energy} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text variant="title">
+                    {sage.streak_days > 0 ? `${sage.streak_days}-day streak` : 'Start a streak'}
+                  </Text>
+                  <Text variant="caption" tone="muted">
+                    {sage.streak_days > 0
+                      ? `Cook today to keep ${sage.name} glowing`
+                      : `Cook today to begin ${sage.name}'s journey`}
+                  </Text>
+                </View>
+                <Icon name="arrow-right" tone="muted" size="sm" />
+              </Card>
+            </Pressable>
+          )}
+        </View>
 
         {/* ── Action dock: dominant CTA + circular treat / closet orbs ─────────── */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>

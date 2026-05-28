@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Badge, Button, Card, Gradient, Icon, Screen, Text } from '../../src/components/ui';
+import { Badge, Button, Card, Gradient, Icon, PressableScale, Screen, Text } from '../../src/components/ui';
 import { useRecipe, useSaveRecipe } from '../../src/features/recipes/useRecipes';
 import { haptic } from '../../src/lib/haptics';
 import { useRecipeDraft } from '../../src/store/recipe';
@@ -30,6 +30,8 @@ export default function RecipeDetail() {
 
   // Local "have it" check-off for ingredients (a prep checklist) — resets each visit.
   const [checked, setChecked] = useState<Set<number>>(new Set());
+  // Drafts aren't kept until saved — track it so the footer can make that unmistakable.
+  const [justSaved, setJustSaved] = useState(false);
 
   if (!recipe) {
     return (
@@ -56,10 +58,18 @@ export default function RecipeDetail() {
     save.mutate(recipe!, {
       onSuccess: () => {
         haptic.success();
-        Alert.alert('Saved', 'Added to your cookbook.');
+        setJustSaved(true);
       },
       onError: () => Alert.alert('Hmm', "Couldn't save that recipe."),
     });
+  }
+
+  // Recipes can't be hand-edited (they drive Cook Mode), so changes happen by asking Sage. Reopen the
+  // chat that created this recipe; if that chat is gone, start a fresh one seeded with the recipe.
+  function tweakInChat() {
+    haptic.light();
+    const sid = recipe!.session_id;
+    router.push(sid ? `/chat/${sid}?resume=1&tweak=${id}` : `/chat/new?fresh=1&tweak=${id}`);
   }
 
   function toggleIngredient(i: number) {
@@ -81,8 +91,9 @@ export default function RecipeDetail() {
           headerStyle: { backgroundColor: 'transparent' },
           headerRight: isDraft
             ? () => (
-                <Pressable
+                <PressableScale
                   onPress={onSave}
+                  haptics={false}
                   hitSlop={8}
                   style={[
                     {
@@ -101,7 +112,7 @@ export default function RecipeDetail() {
                   ) : (
                     <Icon name="book-open" tone="primary" size="sm" />
                   )}
-                </Pressable>
+                </PressableScale>
               )
             : undefined,
         }}
@@ -290,7 +301,41 @@ export default function RecipeDetail() {
             style={{ flex: 1 }}
           />
         </View>
-        <Button title="Start cooking" icon="play" onPress={() => router.push(`/cook-mode/${id}`)} />
+        {isDraft ? (
+          // Draft = generated but NOT yet kept. Make saving the obvious primary action and spell out
+          // that it disappears otherwise; cooking without saving stays available but de-emphasised.
+          <View style={{ gap: theme.spacing.sm }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <Icon name={justSaved ? 'check' : 'sparkles'} tone={justSaved ? 'success' : 'muted'} size="sm" />
+              <Text variant="caption" tone={justSaved ? 'success' : 'muted'}>
+                {justSaved
+                  ? 'Saved to your cookbook'
+                  : 'Not saved yet — save it to keep it in your cookbook'}
+              </Text>
+            </View>
+            {justSaved ? (
+              <Button title="Start cooking" icon="play" onPress={() => router.push(`/cook-mode/${id}`)} />
+            ) : (
+              <>
+                <Button title="Save to cookbook" icon="book-open" loading={save.isPending} onPress={onSave} />
+                <Button
+                  title="Cook without saving"
+                  variant="ghost"
+                  onPress={() => router.push(`/cook-mode/${id}`)}
+                />
+              </>
+            )}
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
+            <View style={{ flex: 1 }}>
+              <Button title="Tweak in chat" variant="secondary" icon="message-circle" onPress={tweakInChat} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button title="Start cooking" icon="play" onPress={() => router.push(`/cook-mode/${id}`)} />
+            </View>
+          </View>
+        )}
       </View>
     </View>
   );

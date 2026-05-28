@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 FeedSource = Literal["cook", "snack", "checkin"]
+Season = Literal["spring", "summer", "fall", "winter"]
 
 
 class SagePetOut(BaseModel):
@@ -32,6 +33,8 @@ class SagePetOut(BaseModel):
 
 class FeedRequest(BaseModel):
     source: FeedSource = "cook"
+    # When source="cook", the id of the saved recipe being cooked — drives the seasonal harvest.
+    recipe_id: str | None = None
 
 
 class RenameRequest(BaseModel):
@@ -48,8 +51,20 @@ class Cosmetic(BaseModel):
     unlock_level: int          # 0 if purchasable at any level
 
 
+class HarvestDelta(BaseModel):
+    """The seasonal-harvest result of a single cook — what the client celebrates."""
+
+    season: Season
+    year: int
+    new_slugs: list[str] = Field(default_factory=list)   # produce slugs added this cook
+    total: int = 0                                       # ingredients_cooked count for the season
+    target: int = 8                                      # threshold for the "harvester" award
+    new_awards: list[str] = Field(default_factory=list)  # award slugs earned this cook
+
+
 class FeedResult(BaseModel):
     pet: SagePetOut
     leveled_up: bool = False
     revived: bool = False
     credits_balance: int | None = None  # set when the action spent credits
+    harvest_delta: HarvestDelta | None = None  # populated when a cook hit in-season ingredients

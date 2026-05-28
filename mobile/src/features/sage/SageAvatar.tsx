@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, View } from 'react-native';
 
+import { SageChefMark } from '../../components/SageChefMark';
 import { Icon, type IconName } from '../../components/ui';
 import { useTheme } from '../../theme';
 import { VitalityRing } from './VitalityRing';
@@ -37,7 +38,14 @@ export function SageAvatar({ vitality, moodColor, themeColor, accessoryIcon, dor
 
   return (
     <Animated.View style={{ width: size, height: size, opacity: dormant ? 0.7 : 1, transform: [{ translateY }] }}>
-      <VitalityRing value={vitality} size={size} color={moodColor} track={theme.colors.divider} strokeWidth={7}>
+      <VitalityRing
+        value={vitality}
+        size={size}
+        color={moodColor}
+        gradient={theme.gradients.aiRing}
+        track={theme.colors.divider}
+        strokeWidth={7}
+      >
         <View
           style={[
             {
@@ -47,12 +55,13 @@ export function SageAvatar({ vitality, moodColor, themeColor, accessoryIcon, dor
               backgroundColor: themeColor ?? theme.colors.primarySoft,
               alignItems: 'center',
               justifyContent: 'center',
+              overflow: 'hidden',
             },
             theme.shadow.glow,
             { shadowColor: moodColor },
           ]}
         >
-          <Icon name="chef-hat" size={Math.round(disc * 0.46)} tone="primary" />
+          <SageChefMark size={Math.round(disc * 0.88)} />
         </View>
       </VitalityRing>
 

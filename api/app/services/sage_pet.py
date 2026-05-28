@@ -12,9 +12,13 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import CareEvent, SagePet
-from app.schemas.sage import Cosmetic, FeedSource, SagePetOut
-from app.services import credits
+from app.db.models import CareEvent, SagePet, SavedRecipe, SeasonalHarvest, TasteProfile, UserAward
+from app.schemas.sage import Cosmetic, FeedSource, HarvestDelta, SagePetOut
+from app.services import credits, seasons
+
+# ── Seasonal-harvest thresholds (the second progression loop) ────────────────
+HARVEST_TARGET = 8        # ingredients to unlock the "harvester" award
+HARVEST_BUMPER = 12       # all 12 = "bumper crop" bonus award
 
 # ── Tunable balance constants ───────────────────────────────────────────────
 DECAY_PER_DAY = 40.0
@@ -83,6 +87,38 @@ def bond_level(bond_xp: int) -> int:
     return 1 + bond_xp // 200
 
 
+def compute_harvest_update(
+    current_ingredients_cooked: list[str],
+    current_awards_earned: list[str],
+    matched_slugs: set[str],
+    season: str,
+    year: int,
+) -> tuple[list[str], list[str], list[str]]:
+    """Pure helper for the seasonal-harvest threshold logic. Returns
+    ``(new_slugs, updated_ingredients_cooked, new_awards)``.
+
+    ``new_slugs`` is what this cook added (sorted, may be empty).
+    ``updated_ingredients_cooked`` is the new total set (sorted).
+    ``new_awards`` are the award slugs newly earned by crossing thresholds this cook.
+    """
+    already = set(current_ingredients_cooked or [])
+    new_slugs = sorted(matched_slugs - already)
+    updated = sorted(already | set(new_slugs))
+
+    earned = set(current_awards_earned or [])
+    new_awards: list[str] = []
+    total = len(updated)
+    if total >= HARVEST_TARGET:
+        slug = f"{season}-{year}-harvester"
+        if slug not in earned:
+            new_awards.append(slug)
+    if total >= HARVEST_BUMPER:
+        slug = f"{season}-{year}-bumper-crop"
+        if slug not in earned:
+            new_awards.append(slug)
+    return new_slugs, updated, new_awards
+
+
 _BANDS = [
     (80, "thriving", "Thriving", "🤩"),
     (55, "content", "Content", "😋"),
@@ -147,9 +183,17 @@ async def _log(db: AsyncSession, user_id: str, type_: str, v: int, xp: int, meta
 
 
 async def feed(
-    db: AsyncSession, user_id: str, source: FeedSource, now: datetime | None = None
-) -> tuple[SagePet, bool, bool]:
-    """Feed Sage. Returns (pet, leveled_up, revived). Caller commits."""
+    db: AsyncSession,
+    user_id: str,
+    source: FeedSource,
+    now: datetime | None = None,
+    recipe_id: str | None = None,
+) -> tuple[SagePet, bool, bool, HarvestDelta | None]:
+    """Feed Sage. Returns (pet, leveled_up, revived, harvest_delta). Caller commits.
+
+    ``harvest_delta`` is populated only when ``source == "cook"`` and ``recipe_id`` is given,
+    representing the seasonal-journey progress that this cook produced.
+    """
     now = now or _now()
     pet = await get_or_create(db, user_id)
     _settle_decay(pet, now)
@@ -182,7 +226,83 @@ async def feed(
         await _log(db, user_id, "levelup", 0, xp_gain, {"level": pet.level})
 
     await _log(db, user_id, source, vit, xp_gain)
-    return pet, leveled_up, revived
+
+    harvest_delta: HarvestDelta | None = None
+    if source == "cook" and recipe_id is not None:
+        harvest_delta = await _update_harvest(db, user_id, recipe_id, now)
+
+    return pet, leveled_up, revived, harvest_delta
+
+
+async def _update_harvest(
+    db: AsyncSession, user_id: str, recipe_id: str, now: datetime
+) -> HarvestDelta | None:
+    """Match the recipe's ingredients against the current season's hero produce and
+    update the user's ``seasonal_harvests`` row. Returns a delta describing what changed."""
+    recipe = await db.get(SavedRecipe, recipe_id)
+    if recipe is None or not recipe.ingredients:
+        return None
+
+    profile = await db.get(TasteProfile, user_id)
+    hemisphere: seasons.Hemisphere = (profile.hemisphere if profile else "N") or "N"  # type: ignore[assignment]
+    today = now.date()
+    season = seasons.current_season(today, hemisphere)
+    year = today.year
+
+    # Ingredients are stored as a list of {item, quantity} dicts.
+    ingredient_strings = [
+        (ing.get("item", "") if isinstance(ing, dict) else str(ing))
+        for ing in recipe.ingredients
+    ]
+    matched_slugs = seasons.match_ingredients(ingredient_strings, hemisphere, today)
+
+    harvest = await db.get(SeasonalHarvest, (user_id, season, year))
+    if harvest is None:
+        harvest = SeasonalHarvest(
+            user_id=user_id,
+            season=season,
+            year=year,
+            hemisphere=hemisphere,
+            ingredients_cooked=[],
+            cooks_count=0,
+            awards_earned=[],
+        )
+        db.add(harvest)
+
+    new_slugs, updated_ingredients, new_awards = compute_harvest_update(
+        harvest.ingredients_cooked or [],
+        harvest.awards_earned or [],
+        matched_slugs,
+        season,
+        year,
+    )
+    if new_slugs:
+        harvest.ingredients_cooked = updated_ingredients
+    harvest.cooks_count = (harvest.cooks_count or 0) + 1
+
+    if new_awards:
+        harvest.awards_earned = sorted({*(harvest.awards_earned or []), *new_awards})
+        # First time crossing the harvester threshold stamps completion.
+        if any(a.endswith("-harvester") for a in new_awards) and harvest.completed_at is None:
+            harvest.completed_at = now
+        for award_slug in new_awards:
+            db.add(UserAward(user_id=user_id, award_slug=award_slug))
+        await _log(
+            db, user_id, "cook", 0, 0,
+            {"harvest_awards": new_awards, "season": season, "year": year},
+        )
+
+    # Persist the in-place mutations so a subsequent read in the same txn sees them.
+    await db.flush()
+
+    return HarvestDelta(
+        season=season,
+        year=year,
+        new_slugs=new_slugs,
+        total=len(updated_ingredients),
+        target=HARVEST_TARGET,
+        new_awards=new_awards,
+    )
 
 
 async def maybe_daily_checkin(db: AsyncSession, user_id: str, now: datetime | None = None) -> SagePet:
@@ -190,7 +310,7 @@ async def maybe_daily_checkin(db: AsyncSession, user_id: str, now: datetime | No
     now = now or _now()
     pet = await get_or_create(db, user_id)
     if pet.last_feed_date != now.date():
-        pet, _, _ = await feed(db, user_id, "checkin", now)
+        pet, _, _, _ = await feed(db, user_id, "checkin", now)
     else:
         _settle_decay(pet, now)
     return pet

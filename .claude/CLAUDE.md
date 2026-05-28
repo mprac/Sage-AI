@@ -97,6 +97,66 @@ Tamagotchi-style chef companion you feed by cooking. Metered by a credit wallet.
 
 ---
 
+## Engineering principles (DRY & reuse)
+Before writing new code, look for existing primitives — duplicating them is the most common
+source of drift in this repo.
+- **Mobile UI:** reuse `src/components/ui/` (`Button`, `Screen`, `EmptyState`, `Markdown`,
+  `Icon`, `CreditPill`, `Gradient`). Add a *variant prop* to an existing primitive before
+  creating a new component. New shared primitives go in `src/components/ui/` and are re-exported
+  from `ui/index.ts`.
+- **Mobile logic:** repeated stateful logic becomes a hook in `src/features/<domain>/` (see
+  `useChatStream`, `useChats`, `useSage`). Components stay presentational; hooks own fetching,
+  caching, and side-effects.
+- **Backend:** routers stay thin — orchestration + auth + credit check only. Domain logic lives
+  in `app/services/`; shapes live in `app/schemas/`. If two routers do the same thing, lift it
+  into a service.
+- **Types:** never hand-write API response shapes in mobile. Use `src/types/api.ts` (regenerated
+  via `npm run gen:api`) so backend changes surface as type errors.
+- **Theming:** every color/space/radius/font reads from `useTheme()` tokens. A hex literal or
+  magic number in a component is a bug — extend `theme/tokens.ts` instead.
+- **No speculative abstractions.** Extract a helper on the *second* duplication, not the first.
+  Three similar lines beat a premature abstraction.
+
+---
+
+## Mobile UX standards (responsive & friendly)
+Every screen must handle the four async states and the device's physical constraints.
+
+**Async states (non-negotiable on every screen that fetches):**
+- **Loading:** prefer a skeleton matched to the final layout over a centered spinner. Spinners
+  only for sub-second actions (button submit).
+- **Empty:** use `<EmptyState>` with an icon, one-line message, and a single CTA.
+- **Error:** show a retry affordance; never surface a raw stack trace or HTTP code.
+- **Success:** see *Invisible background refresh* — refetches must not flash skeletons or
+  scroll-jump. Use TanStack Query's `keepPreviousData` / `placeholderData`.
+
+**Layout & responsiveness:**
+- Wrap screens in `<Screen>` (handles safe-area insets, scroll, theme bg). Never hardcode
+  status-bar or notch padding.
+- Use Flexbox + percentage / `flex: 1`; avoid fixed pixel widths. Test on a small phone
+  (iPhone SE width = 375pt) before shipping.
+- Long content scrolls (`ScrollView` / `FlatList`); never let it clip behind the tab bar —
+  add bottom padding equal to the tab-bar inset.
+- Lists use `FlatList` (virtualized) with stable `keyExtractor`. No `.map()` over large arrays
+  in `ScrollView`.
+
+**Touch & input:**
+- Minimum touch target **44×44pt**. Wrap small icons in a `Pressable` with padded `hitSlop`.
+- Forms: wrap in `KeyboardAvoidingView` (`behavior="padding"` iOS, `"height"` Android);
+  text inputs scroll into view on focus; submit button stays reachable above the keyboard.
+- Provide haptic feedback on destructive / success actions via `expo-haptics`.
+
+**Accessibility & polish:**
+- Every `<Icon>` used as a button needs `accessibilityLabel`. Decorative icons get
+  `accessibilityElementsHidden`.
+- Text uses theme typography tokens (not raw `fontSize`); respects dynamic type by default.
+- Contrast: foreground/background pairs come from token combinations already vetted in
+  `theme/tokens.ts` — don't mix arbitrary palette entries.
+- Animations: use `react-native-reanimated` worklets; never animate layout on the JS thread
+  for anything user-driven (scroll, drag).
+
+---
+
 ## Commands
 | Task | Command |
 |---|---|
@@ -118,3 +178,8 @@ Tamagotchi-style chef companion you feed by cooking. Metered by a credit wallet.
 - [ ] Added native/Expo deps via `npx expo install`, not bare `npm install`.
 - [ ] **Before publishing:** settle on the final Sage layout variant (`SAGE_VARIANTS[0]`); the
       variant switcher is `__DEV__`-only and auto-strips from release builds — confirm it's gone.
+- [ ] New screen handles **loading / empty / error / success** states (skeleton, `EmptyState`, retry).
+- [ ] Reused existing `src/components/ui/` primitives; new shared UI exported from `ui/index.ts`.
+- [ ] Touch targets ≥ 44pt; icon-buttons have `accessibilityLabel`.
+- [ ] Tested at iPhone SE width (375pt) — no clipping, no horizontal scroll.
+- [ ] Forms wrap in `KeyboardAvoidingView` and stay reachable above the keyboard.

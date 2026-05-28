@@ -6,7 +6,7 @@ import { View } from 'react-native';
 import { Button, Card, Gradient, Icon, Screen, Text } from '../src/components/ui';
 import { usePurchases } from '../src/features/billing/usePurchases';
 import { api } from '../src/lib/api';
-import { useTheme } from '../src/theme';
+import { palette, useTheme } from '../src/theme';
 import { useWallet } from '../src/store/wallet';
 import type { WalletSummary } from '../src/types/api';
 
@@ -36,12 +36,12 @@ export default function Wallet() {
           ...theme.shadow.card,
         }}
       >
-        <Text variant="overline" tone="onPrimary" style={{ opacity: 0.85 }}>BALANCE</Text>
+        <Text variant="overline" style={{ color: palette.neutral[0], opacity: 0.9 }}>BALANCE</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-          <Icon name="coins" tone="onPrimary" size="lg" />
-          <Text variant="hero" tone="onPrimary">{data?.balance ?? '—'}</Text>
+          <Icon name="coins" color={palette.neutral[0]} size="lg" />
+          <Text variant="hero" style={{ color: palette.neutral[0] }}>{data?.balance ?? '—'}</Text>
         </View>
-        <Text variant="caption" tone="onPrimary" style={{ opacity: 0.85 }}>credits</Text>
+        <Text variant="caption" style={{ color: palette.neutral[0], opacity: 0.9 }}>credits</Text>
       </Gradient>
 
       <Text variant="title" style={{ marginTop: theme.spacing.md }}>Get more credits</Text>

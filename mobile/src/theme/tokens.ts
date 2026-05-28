@@ -24,8 +24,17 @@ const BRAND = {
 
 const ACCENT = {
   300: '#FBD9A6',
-  500: '#F4A340', // warm amber
+  500: '#F4A340', // warm amber — the "gold" for credits / treats
   600: '#DC8A28',
+} as const;
+
+// Warm accent — heat / streak / energy. A friendly ORANGE (not red): appetite + warmth without
+// the harshness of coral-red. Distinct from the gold ACCENT used for credits/achievements.
+const EMBER = {
+  300: '#FDBA74',
+  400: '#FB923C',
+  500: '#F97316', // primary warm accent (orange)
+  600: '#EA580C',
 } as const;
 
 // Warm, slightly green-tinted neutrals so cream + sage feel cohesive (not clinical gray).
@@ -49,7 +58,7 @@ const SEMANTIC = {
   warning: ACCENT[500],
 } as const;
 
-export const palette = { ...BRAND, accent: ACCENT, neutral: NEUTRAL, ...SEMANTIC } as const;
+export const palette = { ...BRAND, accent: ACCENT, ember: EMBER, neutral: NEUTRAL, ...SEMANTIC } as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  2. Scale tokens (shared across light/dark)
@@ -112,20 +121,62 @@ const shadow = {
     shadowOffset: { width: 0, height: 0 },
     elevation: 6,
   },
+  // Warm halo — for energetic/appetite surfaces (the splash, streak flames).
+  glowWarm: {
+    shadowColor: EMBER[500],
+    shadowOpacity: 0.4,
+    shadowRadius: 26,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
+  },
 } as const;
 
 // Soft tinted color-coding for food categories (used on detected-food + ingredient chips).
 export const categoryColors: Record<string, { bg: string; fg: string }> = {
-  vegetable: { bg: '#E7F5EC', fg: '#1E7A4D' },
-  fruit: { bg: '#FCEAF0', fg: '#B43E6B' },
-  protein: { bg: '#F6E9E1', fg: '#A85A33' },
-  grain: { bg: '#F6EFDD', fg: '#9A7B23' },
-  dairy: { bg: '#EEF1F7', fg: '#516089' },
-  sauce: { bg: '#FDF0DD', fg: '#C2841E' },
+  vegetable: { bg: '#DBF1E3', fg: '#15894F' },
+  fruit: { bg: '#FCE0EA', fg: '#C43A6E' },
+  protein: { bg: '#FCE5D8', fg: '#B0552B' },
+  grain: { bg: '#F8ECCF', fg: '#9A7A1C' },
+  dairy: { bg: '#E6ECFA', fg: '#46598F' },
+  sauce: { bg: '#FDE9CC', fg: '#C47A12' },
   other: { bg: NEUTRAL[100], fg: NEUTRAL[600] },
 };
 
-const base = { spacing, radius, iconSize, typography, fonts, shadow, categoryColors };
+// ── Season palettes — drive seasonal habitat tinting + HarvestMeter strokes ──
+// Each palette is consumed by SageHomeHabitat (background wash) and HarvestMeter (stroke gradient).
+export type Season = 'spring' | 'summer' | 'fall' | 'winter';
+
+export const seasonPalette: Record<
+  Season,
+  { wash: readonly [string, string]; ring: readonly string[]; icon: string; label: string }
+> = {
+  spring: {
+    wash: ['#FCE6EE', '#E8F5E0'], // soft pink → soft green (blossoms + new growth)
+    ring: ['#F472B6', '#34D399', '#A7F3D0'],
+    icon: 'sprout',
+    label: 'Spring',
+  },
+  summer: {
+    wash: ['#FFF0CC', '#FFE3B5'], // warm sun + golden field
+    ring: ['#F59E0B', '#FACC15', '#FDE68A'],
+    icon: 'sun',
+    label: 'Summer',
+  },
+  fall: {
+    wash: ['#FFE0C4', '#F5C690'], // pumpkin + warm amber leaves
+    ring: ['#EA580C', '#F97316', '#FB923C'],
+    icon: 'leaf',
+    label: 'Fall',
+  },
+  winter: {
+    wash: ['#DDE7F0', '#EEF1F5'], // frost + cool sky
+    ring: ['#60A5FA', '#93C5FD', '#DBEAFE'],
+    icon: 'snowflake',
+    label: 'Winter',
+  },
+};
+
+const base = { spacing, radius, iconSize, typography, fonts, shadow, categoryColors, seasonPalette };
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  3. Semantic color mapping (light + dark) — components only read these names
@@ -138,8 +189,11 @@ export const lightTheme = {
     primaryDark: BRAND[600],
     primarySoft: BRAND[50],
     onPrimary: NEUTRAL[0],
-    accent: ACCENT[500],
-    accentSoft: BRAND[50],
+    accent: ACCENT[600],
+    accentSoft: '#FBEEDA', // soft amber — credits/treats read as "gold"
+    energy: EMBER[500],
+    energySoft: '#FFEDD5',
+    love: '#E5484D', // hearts / bond — a clean true red
 
     background: NEUTRAL.cream,
     surface: NEUTRAL.sand,
@@ -154,13 +208,21 @@ export const lightTheme = {
     divider: NEUTRAL[100],
 
     danger: SEMANTIC.danger,
+    dangerSoft: '#FBE3E3',
     success: SEMANTIC.success,
     warning: SEMANTIC.warning,
   },
   gradients: {
     brand: [BRAND[400], BRAND[600]] as [string, string],
     hero: [BRAND[50], NEUTRAL.cream] as [string, string],
+    // Warm, readable hero wash (pale peach → cream) for food/cooking surfaces — dark text stays legible.
+    heroWarm: ['#FFEAE0', NEUTRAL.cream] as [string, string],
     accent: [ACCENT[300], ACCENT[500]] as [string, string],
+    // Warm sunrise — appetite + energy. Splash + celebratory/energetic surfaces.
+    appetite: [EMBER[500], ACCENT[500]] as [string, string],
+    // Iridescent "AI" spectrum — the Sage avatar ring. Bridges the brand green into a holographic
+    // cyan→indigo→pink sweep so the companion reads as intelligent / alive.
+    aiRing: ['#1FA971', '#22D3EE', '#ee5e29','#6366F1', '#EC4899'] as [string, string, string, string, string],
     glow: [BRAND[100], 'rgba(31,169,113,0)'] as [string, string],
     // Soft sage→white wash for a raised surface (e.g. the AI chat bubble) — distinct from cream bg.
     bubble: [BRAND[50], NEUTRAL[0]] as [string, string],
@@ -171,36 +233,44 @@ export const darkTheme = {
   ...base,
   mode: 'dark' as const,
   colors: {
-    primary: BRAND[400],
+    primary: '#3BBE88', // brighter pop on the lighter dark ramp
     primaryDark: BRAND[500],
-    primarySoft: '#15271F',
-    onPrimary: NEUTRAL[900],
+    primarySoft: '#1C2E25',
+    onPrimary: NEUTRAL[0], // white reads correctly on green CTAs/gradients in dark mode too
     accent: ACCENT[500],
-    accentSoft: '#15271F',
+    accentSoft: '#2E2118',
+    energy: EMBER[400], // brighter orange reads better on dark
+    energySoft: '#33271C',
+    love: '#FF6369', // hearts / bond — clean red on dark
 
-    background: '#0F1512',
-    surface: '#18201C',
-    card: '#1B231E',
-    elevated: '#222B25',
+    // Brighter, warmer ramp — cozy bistro, not a clinical void.
+    background: '#18201B',
+    surface: '#222A25',
+    card: '#27322B',
+    elevated: '#313C34',
 
     text: '#EAF1EC',
     title: '#F4F8F5',
-    muted: '#9AA79F',
-    subtle: '#6E7A72',
-    border: '#2A332D',
-    divider: '#232B26',
+    muted: '#A6B2AA',
+    subtle: '#76837A',
+    border: '#3A453E',
+    divider: '#2D372F',
 
     danger: '#FF6369',
-    success: BRAND[400],
+    dangerSoft: '#3A2422',
+    success: '#3BBE88',
     warning: ACCENT[500],
   },
   gradients: {
     brand: [BRAND[400], BRAND[600]] as [string, string],
-    hero: ['#16271F', '#0F1512'] as [string, string],
+    hero: ['#243029', '#18201B'] as [string, string],
+    heroWarm: ['#33241C', '#18201B'] as [string, string],
     accent: [ACCENT[300], ACCENT[500]] as [string, string],
-    glow: ['#1C3A2C', 'rgba(28,58,44,0)'] as [string, string],
+    appetite: [EMBER[500], ACCENT[500]] as [string, string],
+    aiRing: ['#34D399', '#22D3EE', '#818CF8', '#F472B6'] as [string, string, string, string],
+    glow: ['#244836', 'rgba(36,72,54,0)'] as [string, string],
     // Subtle raised-surface wash for dark mode (elevated → card).
-    bubble: ['#222B25', '#1B231E'] as [string, string],
+    bubble: ['#313C34', '#27322B'] as [string, string],
   },
 };
 

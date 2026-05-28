@@ -4,6 +4,7 @@ import { View } from 'react-native';
 
 import { useTheme } from '../../theme';
 import { Button } from './Button';
+import { Gradient } from './Gradient';
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
 
@@ -19,18 +20,15 @@ export function EmptyState({ icon, title, subtitle, actionLabel, onAction }: Emp
   const theme = useTheme();
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: theme.spacing.md, padding: theme.spacing.xl }}>
-      <View
-        style={{
-          width: 88,
-          height: 88,
-          borderRadius: 44,
-          backgroundColor: theme.colors.primarySoft,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
+      <Gradient
+        name="brand"
+        style={[
+          { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center' },
+          theme.shadow.glow,
+        ]}
       >
-        <Icon name={icon} tone="primary" size="xl" />
-      </View>
+        <Icon name={icon} tone="onPrimary" size="xl" />
+      </Gradient>
       <Text variant="heading" style={{ textAlign: 'center' }}>{title}</Text>
       {subtitle ? (
         <Text tone="muted" style={{ textAlign: 'center', maxWidth: 300 }}>{subtitle}</Text>

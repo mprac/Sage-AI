@@ -10,18 +10,21 @@
 create extension if not exists vector;
 
 -- ── DROP (clean slate) ───────────────────────────────────────────────────────
-drop table if exists care_events     cascade;
-drop table if exists saved_recipes   cascade;
-drop table if exists sage_pets       cascade;
-drop table if exists memories        cascade;
-drop table if exists chat_messages   cascade;
-drop table if exists chat_sessions   cascade;
-drop table if exists recognitions    cascade;
-drop table if exists purchases       cascade;
-drop table if exists credit_ledger   cascade;
-drop table if exists credit_wallets  cascade;
-drop table if exists taste_profiles  cascade;
-drop table if exists profiles        cascade;
+drop table if exists daily_summary      cascade;
+drop table if exists user_awards        cascade;
+drop table if exists seasonal_harvests  cascade;
+drop table if exists care_events        cascade;
+drop table if exists saved_recipes      cascade;
+drop table if exists sage_pets          cascade;
+drop table if exists memories           cascade;
+drop table if exists chat_messages      cascade;
+drop table if exists chat_sessions      cascade;
+drop table if exists recognitions       cascade;
+drop table if exists purchases          cascade;
+drop table if exists credit_ledger      cascade;
+drop table if exists credit_wallets     cascade;
+drop table if exists taste_profiles     cascade;
+drop table if exists profiles           cascade;
 
 -- ── Profile (1:1 with auth.users) ──────────────────────────────────────────
 create table profiles (
@@ -42,6 +45,7 @@ create table taste_profiles (
   spice_tolerance      text,
   cooking_skill        text,
   household_size       int,
+  hemisphere           char(1) not null default 'N',  -- 'N' | 'S' — drives seasonal produce
   memory_summary       text not null default '',
   updated_at           timestamptz not null default now()
 );
@@ -148,50 +152,94 @@ create index care_events_user_idx on care_events (user_id, created_at desc);
 
 -- ── Saved recipes (cookbook) ────────────────────────────────────────────────
 create table saved_recipes (
-  id                 uuid primary key default gen_random_uuid(),
-  user_id            uuid not null references auth.users (id) on delete cascade,
-  title              text not null,
-  summary            text not null default '',
-  servings           int,
-  total_time_minutes int,
-  ingredients        jsonb not null default '[]',
-  steps              jsonb not null default '[]',
-  playlist           jsonb,
-  recognition_id     uuid,
-  created_at         timestamptz not null default now()
+  id                          uuid primary key default gen_random_uuid(),
+  user_id                     uuid not null references auth.users (id) on delete cascade,
+  title                       text not null,
+  summary                     text not null default '',
+  servings                    int,
+  total_time_minutes          int,
+  ingredients                 jsonb not null default '[]',
+  steps                       jsonb not null default '[]',
+  playlist                    jsonb,
+  seasonal_ingredient_count   int not null default 0,
+  recognition_id              uuid,
+  session_id                  uuid references chat_sessions (id) on delete set null,
+  created_at                  timestamptz not null default now()
 );
 create index saved_recipes_user_idx on saved_recipes (user_id, created_at desc);
+
+-- ── Seasonal Journey ────────────────────────────────────────────────────────
+-- Bounded at 4 rows/user/year. The Almanac UI reads from here, never from care_events.
+create table seasonal_harvests (
+  user_id            uuid not null references auth.users (id) on delete cascade,
+  season             text not null,     -- spring | summer | fall | winter
+  year               int  not null,
+  hemisphere         char(1) not null,  -- 'N' | 'S' (frozen at row creation)
+  ingredients_cooked jsonb not null default '[]',  -- list of produce slugs (set semantics)
+  cooks_count        int  not null default 0,
+  awards_earned      jsonb not null default '[]',  -- list of award slugs
+  started_at         timestamptz not null default now(),
+  completed_at       timestamptz,
+  primary key (user_id, season, year)
+);
+
+-- Lifetime, one-shot awards (e.g. 'first-spring', 'first-100-cooks').
+create table user_awards (
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  award_slug text not null,
+  earned_at  timestamptz not null default now(),
+  primary key (user_id, award_slug)
+);
+
+-- Compacted rollup of care_events older than 90 days (one row per user per day).
+create table daily_summary (
+  user_id        uuid not null references auth.users (id) on delete cascade,
+  day            date not null,
+  cooks          int  not null default 0,
+  treats         int  not null default 0,
+  snacks         int  not null default 0,
+  checkins       int  not null default 0,
+  xp_gained      int  not null default 0,
+  vitality_delta int  not null default 0,
+  primary key (user_id, day)
+);
 
 -- ============================================================================
 --  Row-Level Security  (clients read their own rows; backend service role
 --  bypasses RLS for all writes)
 -- ============================================================================
-alter table profiles        enable row level security;
-alter table taste_profiles  enable row level security;
-alter table credit_wallets  enable row level security;
-alter table credit_ledger   enable row level security;
-alter table purchases       enable row level security;
-alter table recognitions    enable row level security;
-alter table chat_sessions   enable row level security;
-alter table chat_messages   enable row level security;
-alter table memories        enable row level security;
-alter table sage_pets       enable row level security;
-alter table care_events     enable row level security;
-alter table saved_recipes   enable row level security;
+alter table profiles            enable row level security;
+alter table taste_profiles      enable row level security;
+alter table credit_wallets      enable row level security;
+alter table credit_ledger       enable row level security;
+alter table purchases           enable row level security;
+alter table recognitions        enable row level security;
+alter table chat_sessions       enable row level security;
+alter table chat_messages       enable row level security;
+alter table memories            enable row level security;
+alter table sage_pets           enable row level security;
+alter table care_events         enable row level security;
+alter table saved_recipes       enable row level security;
+alter table seasonal_harvests   enable row level security;
+alter table user_awards         enable row level security;
+alter table daily_summary       enable row level security;
 
-create policy "own profile"        on profiles       for select using (auth.uid() = id);
-create policy "own taste"          on taste_profiles for select using (auth.uid() = user_id);
-create policy "own wallet"         on credit_wallets for select using (auth.uid() = user_id);
-create policy "own ledger"         on credit_ledger  for select using (auth.uid() = user_id);
-create policy "own recognitions"   on recognitions   for select using (auth.uid() = user_id);
-create policy "own sessions"       on chat_sessions  for select using (auth.uid() = user_id);
-create policy "own messages"       on chat_messages  for select using (
+create policy "own profile"        on profiles          for select using (auth.uid() = id);
+create policy "own taste"          on taste_profiles    for select using (auth.uid() = user_id);
+create policy "own wallet"         on credit_wallets    for select using (auth.uid() = user_id);
+create policy "own ledger"         on credit_ledger     for select using (auth.uid() = user_id);
+create policy "own recognitions"   on recognitions      for select using (auth.uid() = user_id);
+create policy "own sessions"       on chat_sessions     for select using (auth.uid() = user_id);
+create policy "own messages"       on chat_messages     for select using (
   exists (select 1 from chat_sessions s where s.id = session_id and s.user_id = auth.uid())
 );
-create policy "own memories"       on memories       for select using (auth.uid() = user_id);
-create policy "own sage"           on sage_pets      for select using (auth.uid() = user_id);
-create policy "own care events"    on care_events    for select using (auth.uid() = user_id);
-create policy "own recipes"        on saved_recipes  for select using (auth.uid() = user_id);
+create policy "own memories"       on memories          for select using (auth.uid() = user_id);
+create policy "own sage"           on sage_pets         for select using (auth.uid() = user_id);
+create policy "own care events"    on care_events       for select using (auth.uid() = user_id);
+create policy "own recipes"        on saved_recipes     for select using (auth.uid() = user_id);
+create policy "own harvests"       on seasonal_harvests for select using (auth.uid() = user_id);
+create policy "own awards"         on user_awards       for select using (auth.uid() = user_id);
+create policy "own daily summary"  on daily_summary     for select using (auth.uid() = user_id);
 
 create policy "upsert own profile" on profiles for insert with check (auth.uid() = id);
 create policy "update own profile" on profiles for update using (auth.uid() = id);

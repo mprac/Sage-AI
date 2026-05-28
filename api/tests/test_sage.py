@@ -7,6 +7,7 @@ from app.services.sage_pet import (
     apply_xp,
     bond_level,
     compute_current_vitality,
+    compute_harvest_update,
     hours_until_hungry,
     mood_for,
     next_streak,
@@ -65,3 +66,74 @@ def test_hours_until_hungry():
     assert hours_until_hungry(20) == 0.0
     # From 70 down to the hungry threshold (30) at DECAY_PER_DAY/day.
     assert hours_until_hungry(70) > 0
+
+
+def test_harvest_update_first_cook_adds_slugs():
+    new_slugs, updated, new_awards = compute_harvest_update(
+        current_ingredients_cooked=[],
+        current_awards_earned=[],
+        matched_slugs={"apple", "butternut-squash"},
+        season="fall",
+        year=2026,
+    )
+    assert new_slugs == ["apple", "butternut-squash"]
+    assert updated == ["apple", "butternut-squash"]
+    assert new_awards == []  # below threshold
+
+
+def test_harvest_update_dedupes_existing_slugs():
+    new_slugs, updated, new_awards = compute_harvest_update(
+        current_ingredients_cooked=["apple"],
+        current_awards_earned=[],
+        matched_slugs={"apple", "pear"},
+        season="fall",
+        year=2026,
+    )
+    assert new_slugs == ["pear"]
+    assert updated == ["apple", "pear"]
+    assert new_awards == []
+
+
+def test_harvest_update_8th_slug_emits_harvester():
+    seven = ["apple", "pear", "pumpkin", "fig", "kale", "cranberry", "persimmon"]
+    new_slugs, updated, new_awards = compute_harvest_update(
+        current_ingredients_cooked=seven,
+        current_awards_earned=[],
+        matched_slugs={"butternut-squash"},
+        season="fall",
+        year=2026,
+    )
+    assert new_slugs == ["butternut-squash"]
+    assert len(updated) == 8
+    assert "fall-2026-harvester" in new_awards
+
+
+def test_harvest_update_12th_slug_emits_bumper_crop():
+    eleven = [
+        "apple", "pear", "pumpkin", "fig", "kale", "cranberry",
+        "persimmon", "butternut-squash", "brussels-sprouts", "sweet-potato", "pomegranate",
+    ]
+    new_slugs, updated, new_awards = compute_harvest_update(
+        current_ingredients_cooked=eleven,
+        current_awards_earned=["fall-2026-harvester"],  # already earned
+        matched_slugs={"cauliflower"},
+        season="fall",
+        year=2026,
+    )
+    assert len(updated) == 12
+    assert "fall-2026-bumper-crop" in new_awards
+    # Harvester is NOT re-emitted because it's already earned.
+    assert "fall-2026-harvester" not in new_awards
+
+
+def test_harvest_update_no_new_slugs_returns_no_awards():
+    new_slugs, updated, new_awards = compute_harvest_update(
+        current_ingredients_cooked=["apple", "pear"],
+        current_awards_earned=[],
+        matched_slugs={"apple"},  # already have it
+        season="fall",
+        year=2026,
+    )
+    assert new_slugs == []
+    assert updated == ["apple", "pear"]
+    assert new_awards == []

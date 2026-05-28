@@ -26,9 +26,16 @@ async def list_cosmetics() -> list[Cosmetic]:
 
 @router.post("/sage/feed", response_model=FeedResult)
 async def feed_sage(req: FeedRequest, user: CurrentUser, db: DbSession) -> FeedResult:
-    pet, leveled_up, revived = await sage_pet.feed(db, user.id, req.source)
+    pet, leveled_up, revived, harvest_delta = await sage_pet.feed(
+        db, user.id, req.source, recipe_id=req.recipe_id
+    )
     await db.commit()
-    return FeedResult(pet=sage_pet.to_out(pet), leveled_up=leveled_up, revived=revived)
+    return FeedResult(
+        pet=sage_pet.to_out(pet),
+        leveled_up=leveled_up,
+        revived=revived,
+        harvest_delta=harvest_delta,
+    )
 
 
 @router.post("/sage/treat", response_model=FeedResult)

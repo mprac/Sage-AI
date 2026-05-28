@@ -10,11 +10,13 @@ session reuse it cheaply (verify via usage.cache_read_input_tokens).
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from datetime import date, datetime, timezone
 
 from app.core.config import settings
 from app.prompts import CHAT_SYSTEM
 from app.schemas.profile import TasteProfileOut
 from app.schemas.recognition import DetectedFood
+from app.services import seasons
 from app.services.anthropic_client import Usage, get_anthropic
 
 
@@ -43,7 +45,10 @@ def _build_mood_directive(sage: dict | None) -> str:
 
 
 def _build_context_block(
-    profile: TasteProfileOut, recalls: list[str], foods: list[DetectedFood]
+    profile: TasteProfileOut,
+    recalls: list[str],
+    foods: list[DetectedFood],
+    today: date | None = None,
 ) -> str:
     lines: list[str] = ["## What I know about this user"]
     if profile.dietary_restrictions:
@@ -69,6 +74,47 @@ def _build_context_block(
     if foods:
         names = ", ".join(f.name for f in foods)
         lines.append(f"\n## Ingredients the user has on hand right now\n{names}")
+    # Seasonal awareness — stays inside the cached prefix; rolls over once per season.
+    today = today or datetime.now(timezone.utc).date()
+    hemisphere: seasons.Hemisphere = (profile.hemisphere or "N")  # type: ignore[assignment]
+    season_name = seasons.current_season(today, hemisphere)
+    produce = seasons.produce_for(hemisphere, season_name)
+    produce_names = ", ".join(p.display_name.lower() for p in produce[:8])
+    lines.append(
+        f"\n## What's in season ({today.strftime('%B')}, {season_name})\n"
+        f"Hero produce right now: {produce_names}.\n"
+        f"When suggesting a dish, lean toward in-season ingredients when you can."
+    )
+    return "\n".join(lines)
+
+
+def _build_recipes_block(recipes: list[dict] | None) -> str:
+    """Tell Sage which recipes it produced in this conversation, so it can reference and *tweak* them
+    ("make the pasta one vegetarian"). A recipe flagged ``full`` is the one the user explicitly came
+    back to adjust — we include its ingredients/steps so Sage can regenerate a faithful variation."""
+    if not recipes:
+        return ""
+    lines = ["## Recipes you've created in this conversation"]
+    for r in recipes:
+        title = r.get("title", "Untitled")
+        summary = r.get("summary") or ""
+        lines.append(f'- "{title}"' + (f" — {summary}" if summary else ""))
+        if r.get("full"):
+            ings = ", ".join(
+                i.get("item", "") if isinstance(i, dict) else str(i) for i in r.get("ingredients", [])
+            )
+            steps = " ".join(
+                f"{n}. {s.get('instruction', '') if isinstance(s, dict) else s}"
+                for n, s in enumerate(r.get("steps", []), 1)
+            )
+            if ings:
+                lines.append(f"  Ingredients: {ings}")
+            if steps:
+                lines.append(f"  Steps: {steps}")
+    lines.append(
+        "When the user asks to change one of these, regenerate the whole recipe with the tweak applied — "
+        "never ask them to hand-edit it."
+    )
     return "\n".join(lines)
 
 
@@ -81,6 +127,7 @@ async def stream_chat(
     user_message: str,
     usage_sink: list[Usage],
     sage: dict | None = None,
+    recipes: list[dict] | None = None,
 ) -> AsyncIterator[str]:
     """Yield text deltas as they stream. Appends the final Usage to ``usage_sink`` on completion."""
     # The mood directive is volatile (changes as vitality decays), so it goes AFTER the cached
@@ -93,6 +140,9 @@ async def stream_chat(
             "cache_control": {"type": "ephemeral"},
         },
     ]
+    recipes_block = _build_recipes_block(recipes)
+    if recipes_block:
+        system.append({"type": "text", "text": recipes_block})
     mood = _build_mood_directive(sage)
     if mood:
         system.append({"type": "text", "text": mood})

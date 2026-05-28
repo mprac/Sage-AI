@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
  
 from app import __version__
-from app.api.v1.routers import billing, chat, profile, recipes, recognition, sage, wallet
+from app.api.v1.routers import billing, chat, profile, recipes, recognition, sage, seasons, wallet
 from app.core.config import settings
 from app.core.logging import configure_logging
 
@@ -30,6 +30,7 @@ app.include_router(wallet.router, prefix=API_PREFIX)
 app.include_router(profile.router, prefix=API_PREFIX)
 app.include_router(billing.router, prefix=API_PREFIX)
 app.include_router(sage.router, prefix=API_PREFIX)
+app.include_router(seasons.router, prefix=API_PREFIX)
 app.include_router(recipes.router, prefix=API_PREFIX)
 
 

@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.security import CurrentUser
-from app.db.models import ChatMessage, ChatSession, Recognition
+from app.db.models import ChatMessage, ChatSession, Recognition, SavedRecipe
 from app.db.session import DbSession, SessionLocal
 from app.schemas.chat import ChatDelta, ChatDone, ChatError, ChatOffer, ChatRequest, ChatSummary, ChatTurn
 from app.schemas.recognition import DetectedFood
@@ -92,6 +92,24 @@ async def chat(req: ChatRequest, user: CurrentUser, db: DbSession):
     )
     history = [{"role": m.role, "content": m.content} for m in reversed(rows.scalars().all())]
 
+    # Recipes Sage produced in this conversation, so it can reference and *tweak* them. The one the
+    # user explicitly returned to adjust (req.recipe_id) is included in full (ingredients + steps).
+    recipe_rows = await db.execute(select(SavedRecipe).where(SavedRecipe.session_id == session.id))
+    recipes_by_id: dict[str, dict] = {
+        str(r.id): {"title": r.title, "summary": r.summary} for r in recipe_rows.scalars().all()
+    }
+    if req.recipe_id:
+        target = await db.get(SavedRecipe, req.recipe_id)
+        if target and str(target.user_id) == user.id:
+            recipes_by_id[str(target.id)] = {
+                "title": target.title,
+                "summary": target.summary,
+                "ingredients": target.ingredients,
+                "steps": target.steps,
+                "full": True,
+            }
+    recipes_ctx = list(recipes_by_id.values())
+
     db.add(ChatMessage(session_id=session.id, role="user", content=req.message))
     await db.commit()
 
@@ -109,6 +127,7 @@ async def chat(req: ChatRequest, user: CurrentUser, db: DbSession):
                 user_message=req.message,
                 usage_sink=usage_sink,
                 sage=sage_state,
+                recipes=recipes_ctx,
             ):
                 acc += delta
                 # Stream everything that can't be (part of) the trailing sentinel; strip any fully
@@ -189,8 +208,6 @@ async def list_chat_messages(session_id: str, user: CurrentUser, db: DbSession) 
     """Ordered messages for one of the user's chat sessions (owner-checked)."""
     session = await db.get(ChatSession, session_id)
     if session is None or str(session.user_id) != user.id:
-        from fastapi import HTTPException, status
-
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found")
     rows = await db.execute(
         select(ChatMessage)
@@ -198,3 +215,14 @@ async def list_chat_messages(session_id: str, user: CurrentUser, db: DbSession) 
         .order_by(ChatMessage.created_at)
     )
     return [ChatTurn(role=m.role, content=m.content) for m in rows.scalars().all()]
+
+
+@router.delete("/chats/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_chat(session_id: str, user: CurrentUser, db: DbSession) -> None:
+    """Delete one of the user's chats. Messages cascade; recipes it generated survive (their
+    ``session_id`` is set NULL by the FK), so deleting a chat never destroys saved cookbook entries."""
+    session = await db.get(ChatSession, session_id)
+    if session is None or str(session.user_id) != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found")
+    await db.delete(session)
+    await db.commit()

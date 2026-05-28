@@ -73,6 +73,14 @@ _TOOL = {
                 },
                 "required": ["vibe", "search_query", "tracks"],
             },
+            "seasonal_note": {
+                "type": "string",
+                "description": (
+                    "Optional short chef-y note about how the recipe uses current-season produce, "
+                    "e.g. 'Stars in-season butternut squash and apples'. Omit if no in-season "
+                    "ingredients are featured."
+                ),
+            },
         },
         "required": ["title", "summary", "ingredients", "steps", "playlist"],
     },

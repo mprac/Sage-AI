@@ -5,9 +5,9 @@ import { Pressable, View } from 'react-native';
 import { Badge, Button, Card, Gradient, Icon, type IconName, Screen, Text } from '../../../components/ui';
 import { useTheme } from '../../../theme';
 import { SageAvatar } from '../SageAvatar';
-import { Bar, type SageVariantProps } from './shared';
+import { Bar, iconTint, moodGradient, type SageVariantProps } from './shared';
 
-/** Horizontal stat chip (icon + value + label) tinted by the accent palette. */
+/** Horizontal stat chip (icon + value + label) — icon carries its own semantic colour. */
 function Chip({ icon, value, label }: { icon: IconName; value: number; label: string }) {
   const theme = useTheme();
   return (
@@ -22,7 +22,7 @@ function Chip({ icon, value, label }: { icon: IconName; value: number; label: st
         ...theme.shadow.sm,
       }}
     >
-      <Icon name={icon} color={theme.colors.accent} size="sm" />
+      <Icon name={icon} color={iconTint(icon, theme) ?? theme.colors.primary} size="sm" />
       <Text variant="title">{value}</Text>
       <Text variant="caption" tone="muted">{label}</Text>
     </View>
@@ -93,14 +93,14 @@ export function SageHomeAurora({
               <Text variant="caption" tone="muted">Vitality</Text>
               <Text variant="caption" tone="muted">{sage.vitality}/100</Text>
             </View>
-            <Bar value={sage.vitality} color={moodColor} track={theme.colors.surface} />
+            <Bar value={sage.vitality} colors={moodGradient(sage.state, theme)} track={theme.colors.surface} />
           </View>
           <View style={{ gap: theme.spacing.xs }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text variant="caption" tone="muted">Level {sage.level}</Text>
               <Text variant="caption" tone="muted">{sage.xp}/{sage.xp_to_next} XP</Text>
             </View>
-            <Bar value={xpPct} color={theme.colors.primary} track={theme.colors.surface} />
+            <Bar value={xpPct} colors={[theme.colors.primary, theme.colors.accent, theme.colors.energy]} track={theme.colors.surface} />
           </View>
         </Card>
 

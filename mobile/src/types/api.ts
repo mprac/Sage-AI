@@ -13,6 +13,7 @@ export interface DetectedFood {
   category: string;
   confidence: number;
   estimated_quantity?: string | null;
+  seasonal_note?: string | null;
 }
 
 export interface RecognitionResult {
@@ -21,6 +22,17 @@ export interface RecognitionResult {
   image_path?: string | null;
   credits_spent: number;
   balance: number;
+}
+
+export interface RecognitionDetail {
+  id: string;
+  foods: DetectedFood[];
+  image_path?: string | null;
+  created_at: string;
+}
+
+export interface RecognitionUpdate {
+  foods: DetectedFood[];
 }
 
 export interface LedgerEntry {
@@ -45,6 +57,7 @@ export interface TasteProfile {
   spice_tolerance?: string | null;
   cooking_skill?: string | null;
   household_size?: number | null;
+  hemisphere: Hemisphere;
   memory_summary: string;
 }
 
@@ -80,11 +93,59 @@ export interface Cosmetic {
   unlock_level: number;
 }
 
+export interface HarvestDelta {
+  season: Season;
+  year: number;
+  new_slugs: string[];          // produce slugs added by this cook
+  total: number;                // current ingredients_cooked count for the season
+  target: number;               // threshold for the "harvester" award
+  new_awards: string[];         // award slugs newly earned by this cook
+}
+
 export interface FeedResult {
   pet: SagePet;
   leveled_up: boolean;
   revived: boolean;
   credits_balance?: number | null;
+  harvest_delta?: HarvestDelta | null;
+}
+
+export type Hemisphere = 'N' | 'S';
+export type Season = 'spring' | 'summer' | 'fall' | 'winter';
+
+export interface SeasonalProduce {
+  slug: string;
+  display_name: string;
+  icon: string;
+}
+
+export interface HarvestProgress {
+  cooked: string[];             // slugs already cooked this season
+  cooks_count: number;
+  target: number;
+  total: number;
+  awards_earned: string[];
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+
+export interface SeasonOut {
+  season: Season;
+  year: number;
+  hemisphere: Hemisphere;
+  produce: SeasonalProduce[];
+  harvest: HarvestProgress;
+}
+
+export interface AlmanacEntry {
+  season: Season;
+  year: number;
+  hemisphere: Hemisphere;
+  ingredients_cooked: string[];
+  cooks_count: number;
+  awards_earned: string[];
+  started_at: string;
+  completed_at?: string | null;
 }
 
 export interface RecipeIngredient {
@@ -116,6 +177,8 @@ export interface Recipe {
   ingredients: RecipeIngredient[];
   steps: RecipeStep[];
   playlist?: Playlist | null;
+  session_id?: string | null;
+  seasonal_note?: string | null;
 }
 
 export interface GeneratedRecipe {
@@ -128,5 +191,6 @@ export interface RecipeSummary {
   id: string;
   title: string;
   total_time_minutes?: number | null;
+  session_id?: string | null;
   created_at: string;
 }

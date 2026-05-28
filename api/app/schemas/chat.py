@@ -31,6 +31,9 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, description="The user's new message")
     # Optional client-provided foods when no recognition row exists yet.
     foods: list[DetectedFood] | None = None
+    recipe_id: str | None = Field(
+        default=None, description="A saved recipe to tweak — injected into context so Sage can adjust it"
+    )
 
 
 # Server-sent event payloads (documented for the generated client; sent as `data: {json}`)

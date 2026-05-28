@@ -14,7 +14,7 @@ export function CreditPill({ balance }: { balance: number | null }) {
         flexDirection: 'row',
         alignItems: 'center',
         gap: theme.spacing.xs,
-        backgroundColor: theme.colors.accentSoft,
+        backgroundColor: theme.colors.primarySoft,
         paddingVertical: theme.spacing.xs,
         paddingHorizontal: theme.spacing.md,
         borderRadius: theme.radius.pill,

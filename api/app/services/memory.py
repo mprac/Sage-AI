@@ -53,6 +53,7 @@ async def get_profile(db: AsyncSession, user_id: str) -> TasteProfileOut:
         spice_tolerance=row.spice_tolerance,
         cooking_skill=row.cooking_skill,
         household_size=row.household_size,
+        hemisphere=row.hemisphere or "N",
         memory_summary=row.memory_summary or "",
     )
 
@@ -66,7 +67,7 @@ async def apply_update(db: AsyncSession, user_id: str, update: TasteProfileUpdat
         if new is not None:
             merged = sorted({*getattr(current, field), *new})
             values[field] = merged
-    for scalar in ("spice_tolerance", "cooking_skill", "household_size"):
+    for scalar in ("spice_tolerance", "cooking_skill", "household_size", "hemisphere"):
         v = getattr(update, scalar)
         if v is not None:
             values[scalar] = v

@@ -44,6 +44,7 @@ class TasteProfile(Base):
     spice_tolerance: Mapped[str | None] = mapped_column(String(16), nullable=True)
     cooking_skill: Mapped[str | None] = mapped_column(String(16), nullable=True)
     household_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    hemisphere: Mapped[str] = mapped_column(String(1), default="N")  # 'N' | 'S' — drives seasonal produce
     memory_summary: Mapped[str] = mapped_column(Text, default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -152,7 +153,13 @@ class SavedRecipe(Base):
     ingredients: Mapped[list] = mapped_column(JSONB, default=list)
     steps: Mapped[list] = mapped_column(JSONB, default=list)
     playlist: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    seasonal_ingredient_count: Mapped[int] = mapped_column(Integer, default=0)
     recognition_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # The chat that generated this recipe (so "tweak in chat" can reopen it). SET NULL — deleting a
+    # chat must never delete the user's saved recipes.
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -166,3 +173,44 @@ class CareEvent(Base):
     xp_delta: Mapped[int] = mapped_column(Integer, default=0)
     meta: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SeasonalHarvest(Base):
+    """Per-user, per-season harvest progress. Bounded at 4 rows/user/year."""
+
+    __tablename__ = "seasonal_harvests"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    season: Mapped[str] = mapped_column(String(16), primary_key=True)  # spring|summer|fall|winter
+    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    hemisphere: Mapped[str] = mapped_column(String(1), nullable=False)  # N | S
+    ingredients_cooked: Mapped[list] = mapped_column(JSONB, default=list)  # list of produce slugs
+    cooks_count: Mapped[int] = mapped_column(Integer, default=0)
+    awards_earned: Mapped[list] = mapped_column(JSONB, default=list)  # list of award slugs
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class UserAward(Base):
+    """Lifetime, one-shot awards (e.g. 'first-spring', 'first-100-cooks')."""
+
+    __tablename__ = "user_awards"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    award_slug: Mapped[str] = mapped_column(String(64), primary_key=True)
+    earned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DailySummary(Base):
+    """Compacted rollup of care_events older than 90 days (one row per user per day)."""
+
+    __tablename__ = "daily_summary"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    cooks: Mapped[int] = mapped_column(Integer, default=0)
+    treats: Mapped[int] = mapped_column(Integer, default=0)
+    snacks: Mapped[int] = mapped_column(Integer, default=0)
+    checkins: Mapped[int] = mapped_column(Integer, default=0)
+    xp_gained: Mapped[int] = mapped_column(Integer, default=0)
+    vitality_delta: Mapped[int] = mapped_column(Integer, default=0)

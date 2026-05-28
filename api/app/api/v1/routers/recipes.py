@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
@@ -17,7 +19,7 @@ from app.schemas.recipe import (
     SavedRecipeId,
 )
 from app.schemas.recognition import DetectedFood
-from app.services import credits, memory
+from app.services import credits, memory, seasons
 from app.services.recipe import generate_recipe
 
 router = APIRouter(tags=["recipes"])
@@ -62,6 +64,12 @@ async def generate(req: GenerateRecipeRequest, user: CurrentUser, db: DbSession)
 
 @router.post("/recipes", response_model=SavedRecipeId)
 async def save_recipe(recipe: Recipe, user: CurrentUser, db: DbSession) -> SavedRecipeId:
+    profile = await memory.get_profile(db, user.id)
+    today = datetime.now(timezone.utc).date()
+    hemisphere: seasons.Hemisphere = (profile.hemisphere or "N")  # type: ignore[assignment]
+    seasonal_count = len(
+        seasons.match_ingredients([i.item for i in recipe.ingredients], hemisphere, today)
+    )
     row = SavedRecipe(
         user_id=user.id,
         title=recipe.title,
@@ -71,6 +79,8 @@ async def save_recipe(recipe: Recipe, user: CurrentUser, db: DbSession) -> Saved
         ingredients=[i.model_dump() for i in recipe.ingredients],
         steps=[s.model_dump() for s in recipe.steps],
         playlist=recipe.playlist.model_dump() if recipe.playlist else None,
+        seasonal_ingredient_count=seasonal_count,
+        session_id=recipe.session_id,
     )
     db.add(row)
     await db.flush()
@@ -91,6 +101,7 @@ async def list_recipes(user: CurrentUser, db: DbSession) -> list[RecipeSummary]:
             id=str(r.id),
             title=r.title,
             total_time_minutes=r.total_time_minutes,
+            session_id=str(r.session_id) if r.session_id else None,
             created_at=r.created_at,
         )
         for r in rows.scalars().all()
@@ -110,6 +121,7 @@ async def get_recipe(recipe_id: str, user: CurrentUser, db: DbSession) -> Recipe
         ingredients=row.ingredients,
         steps=row.steps,
         playlist=row.playlist,
+        session_id=str(row.session_id) if row.session_id else None,
     )
 
 

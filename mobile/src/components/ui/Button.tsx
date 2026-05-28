@@ -13,6 +13,7 @@ import {
 import { haptic } from '../../lib/haptics';
 import { useTheme } from '../../theme';
 import { Icon, type IconName } from './Icon';
+import { ShineOverlay } from './ShineOverlay';
 import { Text } from './Text';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -27,7 +28,11 @@ export interface ButtonProps extends Omit<PressableProps, 'children'> {
   icon?: IconName;
 }
 
-/** Themed button: brand-gradient primary, press-scale, haptic feedback. */
+/** Themed button: brand-gradient primary, press-scale, haptic feedback.
+ *
+ *  When `loading` is true, the label stays visible (so the action still reads as a button) and a
+ *  diagonal "shine" gradient sweeps continuously across the surface, suggesting work in flight —
+ *  more delightful than a generic spinner for a long-running mutation like recipe generation. */
 export function Button({
   title,
   variant = 'primary',
@@ -53,18 +58,21 @@ export function Button({
   const animate = (to: number) =>
     Animated.spring(scale, { toValue: to, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
 
+  const shineTint = solid ? 'rgba(255,255,255,0.55)' : `${theme.colors.primary}55`;
+
   const inner = (
     <View style={styles.content}>
+      {icon ? <Icon name={icon} tone={textTone} size="sm" /> : null}
+      <Text variant="label" tone={textTone}>
+        {title}
+      </Text>
       {loading ? (
-        <ActivityIndicator color={solid ? theme.colors.onPrimary : theme.colors.primary} />
-      ) : (
-        <>
-          {icon ? <Icon name={icon} tone={textTone} size="sm" /> : null}
-          <Text variant="label" tone={textTone}>
-            {title}
-          </Text>
-        </>
-      )}
+        <ActivityIndicator
+          color={solid ? theme.colors.onPrimary : theme.colors.primary}
+          style={{ marginLeft: 4 }}
+          size="small"
+        />
+      ) : null}
     </View>
   );
 
@@ -89,9 +97,10 @@ export function Button({
             colors={theme.gradients.brand}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={[styles.base, radiusStyle, { paddingVertical: padV }, theme.shadow.sm]}
+            style={[styles.base, radiusStyle, { paddingVertical: padV, overflow: 'hidden' }, theme.shadow.sm]}
           >
             {inner}
+            <ShineOverlay loading={!!loading} tint={shineTint} />
           </LinearGradient>
         ) : (
           <View
@@ -103,11 +112,13 @@ export function Button({
                 backgroundColor: isDanger ? theme.colors.danger : isGhost ? 'transparent' : theme.colors.card,
                 borderColor: theme.colors.border,
                 borderWidth: variant === 'secondary' ? StyleSheet.hairlineWidth : 0,
+                overflow: 'hidden',
               },
               isDanger ? theme.shadow.sm : null,
             ]}
           >
             {inner}
+            <ShineOverlay loading={!!loading} tint={shineTint} />
           </View>
         )}
       </Pressable>

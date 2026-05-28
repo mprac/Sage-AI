@@ -1,7 +1,8 @@
 import React from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View, type ViewProps } from 'react-native';
-import { type Edge, SafeAreaView } from 'react-native-safe-area-context';
+import { type Edge, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TAB_BAR_HEIGHT } from '../../lib/layout';
 import { useTheme } from '../../theme';
 
 interface ScreenProps extends ViewProps {
@@ -20,6 +21,11 @@ interface ScreenProps extends ViewProps {
    */
   onRefresh?: () => void;
   refreshing?: boolean;
+  /**
+   * Add bottom padding so content clears the floating (frosted) tab bar. Set on the five tab
+   * screens; leave off for pushed/detail screens, which have no tab bar.
+   */
+  tabBarSpacing?: boolean;
 }
 
 /** Page wrapper: themed background, optional scroll + padding + safe-area edges + pull-to-refresh. */
@@ -29,14 +35,23 @@ export function Screen({
   edges = [],
   onRefresh,
   refreshing = false,
+  tabBarSpacing = false,
   style,
   children,
   ...rest
 }: ScreenProps) {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  // Clearance beneath the absolute tab bar (its height + the home-indicator inset + a little gap).
+  const bottomClear = tabBarSpacing ? TAB_BAR_HEIGHT + insets.bottom + theme.spacing.sm : 0;
   const inner = (
     <View
-      style={[{ flex: 1, padding: padded ? theme.spacing.lg : 0, gap: theme.spacing.md }, style]}
+      style={[
+        { flex: 1, padding: padded ? theme.spacing.lg : 0, gap: theme.spacing.md },
+        // For scroll screens the ScrollView's contentContainer carries the clearance instead.
+        tabBarSpacing && !scroll ? { paddingBottom: (padded ? theme.spacing.lg : 0) + bottomClear } : null,
+        style,
+      ]}
       {...rest}
     >
       {children}
@@ -46,7 +61,7 @@ export function Screen({
     <SafeAreaView style={[styles.flex, { backgroundColor: theme.colors.background }]} edges={edges}>
       {scroll ? (
         <ScrollView
-          contentContainerStyle={styles.grow}
+          contentContainerStyle={[styles.grow, tabBarSpacing ? { paddingBottom: bottomClear } : null]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           contentInsetAdjustmentBehavior="never"

@@ -21,6 +21,13 @@ import { useRecipeDraft } from '../../src/store/recipe';
 import { useTheme } from '../../src/theme';
 import type { Recipe, RecipeStep } from '../../src/types/api';
 
+function formatAwardSlug(slug: string): string {
+  return slug
+    .split('-')
+    .map((p) => (p ? p[0].toUpperCase() + p.slice(1) : p))
+    .join(' ');
+}
+
 export default function CookMode() {
   useKeepAwake(); // don't let the screen sleep mid-cook
   const theme = useTheme();
@@ -67,16 +74,30 @@ export default function CookMode() {
 
   function finish() {
     haptic.success();
-    feed.mutate('cook', {
-      onSuccess: (res) => {
-        Alert.alert(
-          'Bon appétit!',
-          `You cooked ${recipe!.title}. ${chefName} is full and happy${res.leveled_up ? ` — and leveled up to ${res.pet.level}!` : '!'}`,
-          [{ text: 'Done', onPress: () => router.back() }],
-        );
+    feed.mutate(
+      { source: 'cook', recipe_id: isDraft ? undefined : id },
+      {
+        onSuccess: (res) => {
+          const lines = [`You cooked ${recipe!.title}.`, `${chefName} is full and happy!`];
+          if (res.leveled_up) lines.push(`${chefName} leveled up to ${res.pet.level}!`);
+          const delta = res.harvest_delta;
+          if (delta && delta.new_slugs.length > 0) {
+            const seasonLabel = delta.season[0].toUpperCase() + delta.season.slice(1);
+            const n = delta.new_slugs.length;
+            lines.push(
+              `+${n} to your ${seasonLabel} ${delta.year} harvest (${delta.total}/${delta.target}).`,
+            );
+          }
+          if (delta && delta.new_awards.length > 0) {
+            lines.push(`Earned: ${delta.new_awards.map(formatAwardSlug).join(', ')}`);
+          }
+          Alert.alert('Bon appétit!', lines.join('\n'), [
+            { text: 'Done', onPress: () => router.back() },
+          ]);
+        },
+        onError: () => router.back(),
       },
-      onError: () => router.back(),
-    });
+    );
   }
 
   return (

@@ -23,11 +23,16 @@ export function useSage() {
   const onResult = (r: FeedResult) => {
     qc.setQueryData(['sage'], r.pet);
     if (typeof r.credits_balance === 'number') setBalance(r.credits_balance);
+    // A successful cook with seasonal ingredients moves the harvest — refresh it so the
+    // home tab's harvest meter ticks up without a manual reload.
+    if (r.harvest_delta && r.harvest_delta.new_slugs.length > 0) {
+      qc.invalidateQueries({ queryKey: ['season'] });
+    }
   };
 
   const feed = useMutation({
-    mutationFn: (source: 'cook' | 'snack' | 'checkin') =>
-      api.post<FeedResult>('/sage/feed', { source }),
+    mutationFn: (args: { source: 'cook' | 'snack' | 'checkin'; recipe_id?: string }) =>
+      api.post<FeedResult>('/sage/feed', args),
     onSuccess: onResult,
   });
 

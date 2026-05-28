@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+Hemisphere = Literal["N", "S"]
 
 
 class TasteProfileOut(BaseModel):
@@ -14,6 +18,7 @@ class TasteProfileOut(BaseModel):
     spice_tolerance: str | None = None
     cooking_skill: str | None = None
     household_size: int | None = None
+    hemisphere: Hemisphere = "N"
     memory_summary: str = ""
 
 
@@ -28,3 +33,4 @@ class TasteProfileUpdate(BaseModel):
     spice_tolerance: str | None = None
     cooking_skill: str | None = None
     household_size: int | None = None
+    hemisphere: Hemisphere | None = None

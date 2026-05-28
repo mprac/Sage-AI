@@ -14,11 +14,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { FadeInUp, Gradient, Icon, type IconName, Input, Markdown, Text } from '../../src/components/ui';
+import { FadeInUp, Gradient, Icon, type IconName, Input, Markdown, ShineOverlay, Text } from '../../src/components/ui';
 import { useChatStream } from '../../src/features/chat/useChatStream';
 import { useChatMessages } from '../../src/features/chat/useChats';
 import { useProfile } from '../../src/features/profile/useProfile';
-import { useGenerateRecipe } from '../../src/features/recipes/useRecipes';
+import { useGenerateRecipe, useSaveRecipe } from '../../src/features/recipes/useRecipes';
 import { useSage } from '../../src/features/sage/useSage';
 import { ApiError } from '../../src/lib/api';
 import { haptic } from '../../src/lib/haptics';
@@ -86,7 +86,7 @@ function CookingStatus() {
 
   return (
     <Animated.View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs, opacity: fade }}>
-      <Icon name="flame" tone="primary" size="sm" />
+      <Icon name="flame" color={theme.colors.energy} size="sm" />
       <Text tone="muted">
         {COOKING_WORDS[wordIdx]}
         {'.'.repeat(dotCount)}
@@ -163,13 +163,10 @@ const Bubble = React.memo(function Bubble({
         >
           {!content ? (
             <CookingStatus />
-          ) : live ? (
-            // While streaming, render PLAIN text — no per-character markdown re-parsing and no
-            // bold/`code` markers flipping on and off mid-stream. That removes the flicker for a
-            // calm, glassy reveal. Typography is identical to the markdown body below, so the
-            // one-time swap to formatted markdown when the reply finishes is seamless.
-            <Text style={{ lineHeight: 26 }}>{content}</Text>
           ) : (
+            // Markdown rendering throughout — including during the stream. The Markdown
+            // component strips trailing unclosed `**`/`` ` ``/```` ``` ```` so users never see
+            // raw markers; closed spans render correctly the moment the closer arrives.
             <Markdown spacious>{content}</Markdown>
           )}
         </Gradient>
@@ -182,7 +179,16 @@ export default function ChatScreen() {
   const theme = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { id, resume, fresh } = useLocalSearchParams<{ id: string; resume?: string; fresh?: string }>();
+  const { id, resume, fresh, tweak } = useLocalSearchParams<{
+    id: string;
+    resume?: string;
+    fresh?: string;
+    tweak?: string;
+  }>();
+  // A saved recipe the user came back to adjust (via "Tweak in chat"). Threaded into every send so
+  // the backend injects the full recipe into Sage's context — even in the fresh-chat fallback where
+  // the recipe isn't linked to this session.
+  const tweakId = typeof tweak === 'string' && tweak ? tweak : null;
   const isResume = resume === '1';
   // A "fresh" chat (started from the Chats tab, only after the first photo-chat exists) has no
   // photo behind it: no recognition and no auto-sent opener — the user types the first message.
@@ -200,6 +206,7 @@ export default function ChatScreen() {
   const { feed } = useSage();
   const { data: profile } = useProfile();
   const generateRecipe = useGenerateRecipe();
+  const saveRecipe = useSaveRecipe();
   const setDraft = useRecipeDraft((s) => s.setDraft);
   const [draftText, setDraftText] = useState('');
   const [focused, setFocused] = useState(false);
@@ -232,6 +239,15 @@ export default function ChatScreen() {
     started.current = true;
     send({ message: 'What can I make with these ingredients?', sessionId: null, recognitionId });
   }, [isResume, isFresh, recognitionId, send]);
+
+  // Coming back to tweak a saved recipe: seed the composer (editable — never auto-sent, so the user
+  // stays in control) and pop the keyboard so they can finish the sentence with their change.
+  useEffect(() => {
+    if (!tweakId) return;
+    setDraftText((prev) => prev || "Let's tweak this recipe — ");
+    const t = setTimeout(() => inputRef.current?.focus(), 350);
+    return () => clearTimeout(t);
+  }, [tweakId]);
 
   // Stay pinned to the bottom only when the user is already there, so reading earlier text isn't
   // yanked. The actual scroll happens in the ScrollView's onContentSizeChange (after layout is
@@ -281,12 +297,12 @@ export default function ChatScreen() {
       return;
     }
     setDraftText('');
-    send({ message: text, sessionId: streamSession.current });
+    send({ message: text, sessionId: streamSession.current, recipeId: tweakId });
   }
 
   function markCooked() {
     haptic.success();
-    feed.mutate('cook', {
+    feed.mutate({ source: 'cook' }, {
       onSuccess: (res) => {
         const lines = [`Yum! ${chefName} is full and happy.`];
         if (res.revived) lines.push(`You brought ${chefName} back to life!`);
@@ -301,8 +317,18 @@ export default function ChatScreen() {
       { session_id: streamSession.current, recognition_id: recognitionId },
       {
         onSuccess: (res) => {
-          setDraft(res.recipe);
-          router.push('/recipe/new');
+          // Auto-save: every generated recipe lands directly in the cookbook — no extra tap to
+          // confirm. The chat that produced it is stamped so "Tweak in chat" can reopen it later.
+          const withSession = { ...res.recipe, session_id: streamSession.current };
+          saveRecipe.mutate(withSession, {
+            onSuccess: ({ id }) => router.push(`/recipe/${id}`),
+            onError: () => {
+              // Save failed — fall back to the ephemeral draft so the user can still cook from
+              // the recipe and try saving manually from the detail screen.
+              setDraft(withSession);
+              router.push('/recipe/new');
+            },
+          });
         },
         onError: (e) => {
           if (e instanceof ApiError && e.status === 402) {
@@ -389,11 +415,13 @@ export default function ChatScreen() {
 
           {/* Contextual recipe hand-off — appears ONLY after the chef explicitly offered the full
               recipe (server `offer` signal), so it's never a guess. Generates the structured recipe
-              + Cook Mode instead of a streamed wall of text. */}
-          {!streaming && offerRecipe && !generateRecipe.isPending ? (
+              + Cook Mode instead of a streamed wall of text. Stays visible during generation +
+              save with a shine sweep so the user sees that we're working on it. */}
+          {!streaming && offerRecipe ? (
             <FadeInUp>
               <Pressable
                 onPress={getRecipe}
+                disabled={generateRecipe.isPending || saveRecipe.isPending}
                 style={[
                   {
                     flexDirection: 'row',
@@ -405,6 +433,7 @@ export default function ChatScreen() {
                     borderColor: theme.colors.primary,
                     padding: theme.spacing.md,
                     marginBottom: theme.spacing.lg,
+                    overflow: 'hidden',
                   },
                   theme.shadow.glow,
                 ]}
@@ -422,12 +451,20 @@ export default function ChatScreen() {
                   <Icon name="book-open" tone="primary" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text variant="title" tone="primary">Get the full recipe</Text>
+                  <Text variant="title" tone="primary">
+                    {generateRecipe.isPending || saveRecipe.isPending
+                      ? 'Cooking up the recipe…'
+                      : 'Get the full recipe'}
+                  </Text>
                   <Text variant="caption" tone="muted">
                     I'll write it all out with a step-by-step Cook Mode
                   </Text>
                 </View>
                 <Icon name="arrow-right" tone="primary" />
+                <ShineOverlay
+                  loading={generateRecipe.isPending || saveRecipe.isPending}
+                  tint={`${theme.colors.primary}55`}
+                />
               </Pressable>
             </FadeInUp>
           ) : null}
@@ -459,9 +496,10 @@ export default function ChatScreen() {
           <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
             <ActionButton
               icon="book-open"
-              label={generateRecipe.isPending ? 'Cooking up…' : 'Get full recipe'}
+              label={generateRecipe.isPending || saveRecipe.isPending ? 'Cooking up…' : 'Get full recipe'}
               onPress={getRecipe}
-              disabled={generateRecipe.isPending || streaming}
+              disabled={generateRecipe.isPending || saveRecipe.isPending || streaming}
+              loading={generateRecipe.isPending || saveRecipe.isPending}
               primary
             />
             <ActionButton
@@ -541,19 +579,22 @@ export default function ChatScreen() {
   );
 }
 
-/** A primary composer action ("Get full recipe" / "I cooked this"). `primary` = brand-tinted. */
+/** A primary composer action ("Get full recipe" / "I cooked this"). `primary` = brand-tinted.
+ *  When `loading`, sweeps a shine across the surface to signal work in flight. */
 function ActionButton({
   icon,
   label,
   onPress,
   disabled,
   primary,
+  loading,
 }: {
   icon: IconName;
   label: string;
   onPress: () => void;
   disabled?: boolean;
   primary?: boolean;
+  loading?: boolean;
 }) {
   const theme = useTheme();
   return (
@@ -571,11 +612,13 @@ function ActionButton({
         backgroundColor: primary ? theme.colors.primarySoft : theme.colors.surface,
         borderWidth: 1,
         borderColor: primary ? theme.colors.primary : theme.colors.border,
-        opacity: disabled ? 0.5 : 1,
+        opacity: disabled && !loading ? 0.5 : 1,
+        overflow: 'hidden',
       }}
     >
       <Icon name={icon} tone="primary" size="sm" />
       <Text variant="label" tone={primary ? 'primary' : 'text'}>{label}</Text>
+      <ShineOverlay loading={!!loading} tint={`${theme.colors.primary}55`} />
     </Pressable>
   );
 }

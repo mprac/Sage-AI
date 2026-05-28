@@ -6,7 +6,7 @@ import { Badge, Button, Card, Icon, Screen, Text } from '../../../components/ui'
 import { useTheme } from '../../../theme';
 import { SageAvatar } from '../SageAvatar';
 import { TREAT_COST } from '../useSage';
-import { Bar, type SageVariantProps, Stat } from './shared';
+import { Bar, moodGradient, type SageVariantProps, Stat } from './shared';
 
 export function SageHomeClassic({
   sage,
@@ -54,14 +54,14 @@ export function SageHomeClassic({
               <Text variant="caption" tone="muted">Vitality</Text>
               <Text variant="caption" tone="muted">{sage.vitality}/100</Text>
             </View>
-            <Bar value={sage.vitality} color={moodColor} track={theme.colors.surface} />
+            <Bar value={sage.vitality} colors={moodGradient(sage.state, theme)} track={theme.colors.surface} />
           </View>
           <View style={{ gap: theme.spacing.xs }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text variant="caption" tone="muted">Level {sage.level}</Text>
               <Text variant="caption" tone="muted">{sage.xp}/{sage.xp_to_next} XP</Text>
             </View>
-            <Bar value={xpPct} color={theme.colors.primary} track={theme.colors.surface} />
+            <Bar value={xpPct} colors={[theme.colors.primary, theme.colors.accent, theme.colors.energy]} track={theme.colors.surface} />
           </View>
           <View style={{ height: 1, backgroundColor: theme.colors.divider }} />
           <View style={{ flexDirection: 'row' }}>

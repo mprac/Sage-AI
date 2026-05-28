@@ -47,10 +47,10 @@ export default function SignIn() {
             >
               <Icon name="chef-hat" tone="primary" size="lg" />
             </View>
-            <Text variant="hero">Sage</Text>
-            <Text variant="body" tone="muted" style={{ maxWidth: 300 }}>
-              Your personal AI chef. Snap your ingredients and Sage turns them into the most amazing
-              meal you've ever made.
+            <Text variant="hero">Sage AI</Text>
+            <Text variant="title" tone="primary">Your personal chef</Text>
+            <Text variant="body" tone="muted" style={{ maxWidth: 300, marginTop: theme.spacing.xs }}>
+              Snap your ingredients and Sage turns them into the most amazing meal you've ever made.
             </Text>
           </View>
 

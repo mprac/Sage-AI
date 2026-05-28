@@ -38,6 +38,10 @@ class Recipe(BaseModel):
     ingredients: list[RecipeIngredient]
     steps: list[RecipeStep]
     playlist: Playlist | None = None
+    session_id: str | None = Field(default=None, description="Chat that generated it")
+    # A short chef-y note about how the recipe relates to the current season — e.g.
+    # "Stars in-season butternut squash and apples". Set by the LLM at generation time.
+    seasonal_note: str | None = None
 
 
 class GenerateRecipeRequest(BaseModel):
@@ -60,4 +64,5 @@ class RecipeSummary(BaseModel):
     id: str
     title: str
     total_time_minutes: int | None = None
+    session_id: str | None = None
     created_at: datetime

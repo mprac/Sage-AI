@@ -24,6 +24,8 @@ interface SendArgs {
   message: string;
   sessionId: string | null;
   recognitionId?: string | null;
+  /** A saved recipe the user came back to tweak — injected into context so Sage can adjust it. */
+  recipeId?: string | null;
 }
 
 // Reveal pacing — a near-constant, capped drip (like Claude/ChatGPT) so it never lurches in
@@ -89,7 +91,7 @@ export function useChatStream(initial: ChatMessage[] = [], initialSessionId: str
   }, []);
 
   const send = useCallback(
-    async ({ message, sessionId, recognitionId }: SendArgs) => {
+    async ({ message, sessionId, recognitionId, recipeId }: SendArgs) => {
       setError(null);
       setStreaming(true);
       setOfferRecipe(false); // a new turn supersedes any prior recipe offer
@@ -115,6 +117,7 @@ export function useChatStream(initial: ChatMessage[] = [], initialSessionId: str
             message,
             session_id: sessionId,
             recognition_id: recognitionId ?? null,
+            recipe_id: recipeId ?? null,
           }),
         });
 

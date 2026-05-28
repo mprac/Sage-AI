@@ -14,14 +14,21 @@ import {
 } from '@react-navigation/native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
+import { BrandSplash } from '../src/components/BrandSplash';
+import { SnackbarHost } from '../src/components/ui';
 import { queryClient } from '../src/lib/queryClient';
 import { ThemeProvider, palette, useTheme } from '../src/theme';
 import { initAuthListener, useAuth } from '../src/store/auth';
+
+// Hold the native splash until our fonts are ready, then hand off to the animated BrandSplash.
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function Navigator() {
   const theme = useTheme();
@@ -75,6 +82,7 @@ function Navigator() {
       <Stack.Screen name="cook-mode/[id]" options={{ headerShown: true, title: 'Cook Mode' }} />
       <Stack.Screen name="wallet" options={{ headerShown: true, title: 'Credits', presentation: 'modal' }} />
       <Stack.Screen name="shop" options={{ headerShown: true, title: 'Closet' }} />
+      <Stack.Screen name="almanac" options={{ headerShown: true, title: 'Almanac' }} />
     </Stack>
     </NavThemeProvider>
   );
@@ -92,23 +100,36 @@ export default function RootLayout() {
   });
 
   return (
-    <SafeAreaProvider initialMetrics={initialWindowMetrics} style={{ flex: 1, backgroundColor: palette.neutral.cream }}>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <StatusBar style="auto" />
-          {fontsLoaded ? <Navigator /> : <FontGate />}
-        </ThemeProvider>
-      </QueryClientProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics} style={{ flex: 1, backgroundColor: palette.neutral.cream }}>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider>
+            <StatusBar style="auto" />
+            <AppShell fontsLoaded={fontsLoaded} />
+          </ThemeProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
-/** Cream loading screen while fonts load (avoids a flash of fallback type). */
-function FontGate() {
-  const theme = useTheme();
+/** Holds the app behind the native splash until fonts load, then overlays the animated BrandSplash
+ *  until the app is ready + a minimum dwell has passed. */
+function AppShell({ fontsLoaded }: { fontsLoaded: boolean }) {
+  const authReady = useAuth((s) => s.ready);
+  const [splashDone, setSplashDone] = useState(false);
+
+  useEffect(() => {
+    if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) return null; // native splash stays up until fonts are ready
+
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.background }}>
-      <ActivityIndicator color={theme.colors.primary} />
+    <View style={{ flex: 1 }}>
+      <Navigator />
+      <SnackbarHost />
+      {!splashDone ? <BrandSplash ready={authReady} onFinish={() => setSplashDone(true)} /> : null}
     </View>
   );
 }
